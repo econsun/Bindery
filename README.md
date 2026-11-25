@@ -17,7 +17,7 @@ The app is written in Swift and uses SwiftUI/AppKit directly. There is no Xcode 
 ./build.sh
 ```
 
-`build.sh` creates `Bindery.app` in the repository root. The app is ad-hoc signed, so on first launch use **right-click → Open** if Gatekeeper asks for confirmation.
+`build.sh` creates `Bindery.app` in the repository root. The app is ad-hoc signed, so on first launch use **right-click → Open** if Gatekeeper asks for confirmation. macOS may also ask for access to your Documents folder (or another volume) so Bindery can read and write the store you point it at; allow it.
 
 ## Objects
 
