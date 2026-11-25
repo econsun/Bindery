@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+**/.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Build products
+Bindery.app/
+release/
+*.dSYM
+*.zip
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.swiftpm/
+
+# Local design/screenshot working files
+Design/
+Preview/
