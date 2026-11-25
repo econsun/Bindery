@@ -69,6 +69,7 @@ Category paths match the sidebar hierarchy. Renaming or moving a category moves 
 - `Archive after first backup` archives a binding after its first successful snapshot.
 - The scanner relocates snapshots by permanent ID and by size/hash, preserves binding/date metadata when a snapshot moves between stores, and verifies stored digests on demand.
 - The whole library is file-first: the catalog is JSON next to the snapshots, and the app never deletes source files.
+- **Timeline** records backups, binding/category/store edits, moves, renames, deletes, verifications, imports, and scans in a durable JSONL log. Filters, expandable details, **Copy JSONL**, and **Reveal Log** make the history useful to both people and AI tools. See [Docs/ACTIVITY_LOG.md](Docs/ACTIVITY_LOG.md).
 
 ## Project layout
 

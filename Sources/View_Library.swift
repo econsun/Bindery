@@ -148,6 +148,8 @@ struct LibraryView: View {
                         )
                     } else if sidebar == .unmanaged {
                         UnmanagedView(search: search)
+                    } else if sidebar == .timeline {
+                        TimelineView(search: search)
                     } else {
                         LibraryContent(
                             title: sidebarTitle,
@@ -192,6 +194,7 @@ struct LibraryView: View {
 
     private var searchPlaceholder: String {
         if snapshotBindingFilter != nil { return "Search this binding" }
+        if sidebar == .timeline { return "Search Activity" }
         if sidebar == .backups { return "Search Backups" }
         return "Search Projects"
     }
@@ -354,6 +357,7 @@ struct LibraryView: View {
         case .all: return "All Bindings"
         case .backups: return "All Backups"
         case .unmanaged: return "Unmanaged"
+        case .timeline: return "Timeline"
         case .active: return "Active"
         case .neverBackedUp: return "Unbacked"
         case .favorites: return "Favorites"
@@ -425,6 +429,7 @@ private struct LibrarySidebar: View {
                         reselect: resetSnapshotFilter
                     )
                     sidebarRow("Unmanaged", icon: "tray", selection: .unmanaged)
+                    sidebarRow("Timeline", icon: "clock.arrow.circlepath", selection: .timeline)
 
                     sectionHeader("Smart Folders", expanded: $showSmartFolders)
                     if showSmartFolders {

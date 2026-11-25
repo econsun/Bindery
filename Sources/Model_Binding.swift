@@ -393,6 +393,7 @@ enum SidebarSelection: Hashable {
     case all
     case backups
     case unmanaged
+    case timeline
     case active
     case neverBackedUp
     case favorites
@@ -408,7 +409,7 @@ enum SidebarSelection: Hashable {
 func matchesSidebar(_ binding: BackupBinding, selection: SidebarSelection) -> Bool {
     switch selection {
     case .all: return true
-    case .backups, .unmanaged: return false
+    case .backups, .unmanaged, .timeline: return false
     case .active: return !binding.isArchived
     case .neverBackedUp: return binding.lastBackupAt == nil && !binding.isArchived
     case .favorites: return binding.isFavorite

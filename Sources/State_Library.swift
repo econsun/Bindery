@@ -57,6 +57,15 @@ final class LibraryState: ObservableObject {
         customCategories = UserDefaults.standard.stringArray(forKey: customCategoriesKey) ?? []
         loadCategoryColors()
         normalizeCategoryColors()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        ActivityLog.shared.log(
+            .appLaunch,
+            level: .minor,
+            actor: .system,
+            title: "Bindery launched",
+            summary: "Version \(version)",
+            details: ["version": version, "bindings": "\(bindings.count)", "stores": "\(stores.count)"]
+        )
     }
 
     var snapshotGroups: [SnapshotGroup] {
@@ -192,6 +201,7 @@ final class LibraryState: ObservableObject {
             customCategories.append(trimmed)
             customCategories.sort { $0.localizedStandardCompare($1) == .orderedAscending }
             UserDefaults.standard.set(customCategories, forKey: customCategoriesKey)
+            ActivityLog.shared.log(.categoryCreated, level: .minor, title: "Created category \(trimmed)", details: ["category": trimmed])
             showStatus("Created \(trimmed)")
         }
     }
@@ -214,6 +224,13 @@ final class LibraryState: ObservableObject {
         let newPath = parent.map { "\($0)/\(trimmed)" } ?? trimmed
         guard newPath != path else { return }
         repathCategory(path, to: newPath, message: "Renamed category")
+        ActivityLog.shared.log(
+            .categoryRenamed,
+            level: .normal,
+            title: "Renamed category",
+            summary: "\(path) → \(newPath)",
+            details: ["from": path, "to": newPath]
+        )
     }
 
     func moveCategory(_ path: String, under parent: String?) {
@@ -223,6 +240,13 @@ final class LibraryState: ObservableObject {
         let newPath = parent.map { "\($0)/\(name)" } ?? name
         guard newPath != path else { return }
         repathCategory(path, to: newPath, message: parent == nil ? "Moved category to root" : "Moved category")
+        ActivityLog.shared.log(
+            .categoryMoved,
+            level: .normal,
+            title: "Moved category",
+            summary: "\(path) → \(newPath)",
+            details: ["from": path, "to": newPath, "parent": parent ?? "root"]
+        )
     }
 
     func removeCategoryIfEmpty(_ path: String) {
@@ -232,6 +256,7 @@ final class LibraryState: ObservableObject {
         categoryColors = categoryColors.filter { !($0.key == path || $0.key.hasPrefix(path + "/")) }
         UserDefaults.standard.set(customCategories, forKey: customCategoriesKey)
         saveCategoryColors()
+        ActivityLog.shared.log(.categoryRemoved, level: .minor, title: "Removed empty category \(path)", details: ["category": path])
         objectWillChange.send()
     }
 
@@ -301,12 +326,25 @@ final class LibraryState: ObservableObject {
         addCategory(category)
         persist(message: "Moved to \(category)")
         relocateSnapshots(bindingID: id, newCategory: category)
+        ActivityLog.shared.log(
+            .bindingCategory,
+            level: .normal,
+            title: "Moved binding \(bindings[index].name) to \(category)",
+            details: ["binding": bindings[index].name, "category": category, "bindingID": id.uuidString]
+        )
     }
 
     func assignArchived(_ id: UUID, _ archived: Bool) {
         guard let index = bindings.firstIndex(where: { $0.id == id }) else { return }
         bindings[index].isArchived = archived
         persist(message: archived ? "Archived" : "Unarchived")
+        ActivityLog.shared.log(
+            .bindingArchived,
+            level: .minor,
+            actor: .user,
+            title: archived ? "Archived \(bindings[index].name)" : "Unarchived \(bindings[index].name)",
+            details: ["binding": bindings[index].name, "archived": archived ? "true" : "false"]
+        )
     }
 
     func addCreator(_ id: UUID, _ creator: BindingCreator) {
@@ -314,6 +352,13 @@ final class LibraryState: ObservableObject {
         bindings[index].creators.insert(creator)
         bindings[index].isArchived = false
         persist(message: "Added creator: \(creator.rawValue)")
+        ActivityLog.shared.log(
+            .bindingUpdated,
+            level: .minor,
+            title: "Added creator to \(bindings[index].name)",
+            summary: creator.rawValue,
+            details: ["binding": bindings[index].name, "creator": creator.rawValue]
+        )
     }
 
     func setCreator(_ id: UUID, _ creator: BindingCreator) {
@@ -321,6 +366,13 @@ final class LibraryState: ObservableObject {
         bindings[index].creators = [creator]
         bindings[index].isArchived = false
         persist(message: "Creator: \(creator.rawValue)")
+        ActivityLog.shared.log(
+            .bindingUpdated,
+            level: .minor,
+            title: "Changed creator for \(bindings[index].name)",
+            summary: creator.rawValue,
+            details: ["binding": bindings[index].name, "creator": creator.rawValue]
+        )
     }
 
     func load() {
@@ -341,7 +393,9 @@ final class LibraryState: ObservableObject {
             if let reachable = stores[index].reachablePath, reachable != stores[index].path {
                 stores[index].path = reachable
             }
-            stores[index].refreshBookmark()
+            // Do not create security-scoped bookmarks on the main thread here.
+            // On iCloud/removable volumes that can block waiting for a sandbox
+            // extension; the scanner refreshes bookmarks off the main thread.
         }
     }
 
@@ -380,6 +434,7 @@ final class LibraryState: ObservableObject {
         saved.category = CatalogStore.sanitizedCategoryPath(saved.category)
         saved.tone = categoryColor(saved.category)
         addCategory(saved.category)
+        let previous = bindings.first { $0.id == saved.id }
         var previousCategory: String?
         if let index = bindings.firstIndex(where: { $0.id == saved.id }) {
             previousCategory = bindings[index].category
@@ -390,6 +445,25 @@ final class LibraryState: ObservableObject {
         persist(message: "Saved \(saved.name)")
         if let previousCategory, previousCategory != saved.category {
             relocateSnapshots(bindingID: saved.id, newCategory: saved.category)
+        }
+        var details = bindingDetails(saved)
+        if let previous {
+            details["changed"] = bindingChanges(from: previous, to: saved)
+            ActivityLog.shared.log(
+                .bindingUpdated,
+                level: .major,
+                title: "Updated binding \(saved.name)",
+                summary: "Changed: \(details["changed"] ?? "")",
+                details: details
+            )
+        } else {
+            ActivityLog.shared.log(
+                .bindingCreated,
+                level: .major,
+                title: "Created binding \(saved.name)",
+                summary: "\(saved.kind.rawValue) · \(saved.category)",
+                details: details
+            )
         }
     }
 
@@ -437,12 +511,30 @@ final class LibraryState: ObservableObject {
         bindings.removeAll { $0.id == binding.id }
         persist(message: affected.isEmpty ? "Deleted \(binding.name)" : "Deleted \(binding.name); its backups are now unmanaged")
         hydrateBindings()
+        ActivityLog.shared.log(
+            .bindingDeleted,
+            level: .major,
+            title: "Deleted binding \(binding.name)",
+            summary: affected.isEmpty ? "No snapshots were attached" : "\(affected.count) snapshot\(affected.count == 1 ? "" : "s") returned to Unmanaged",
+            details: [
+                "binding": binding.name,
+                "category": binding.category,
+                "bindingID": binding.id.uuidString,
+                "snapshotIDs": affected.map(\.record.id).joined(separator: ",")
+            ]
+        )
     }
 
     func toggleFavorite(_ binding: BackupBinding) {
         guard let index = bindings.firstIndex(where: { $0.id == binding.id }) else { return }
         bindings[index].isFavorite.toggle()
         persist(message: bindings[index].isFavorite ? "Added to Favorites" : "Removed from Favorites")
+        ActivityLog.shared.log(
+            .bindingFavorite,
+            level: .minor,
+            title: bindings[index].isFavorite ? "Favorited \(bindings[index].name)" : "Unfavorited \(bindings[index].name)",
+            details: ["binding": bindings[index].name]
+        )
     }
 
     func move(_ binding: BackupBinding, to category: String) {
@@ -456,6 +548,12 @@ final class LibraryState: ObservableObject {
         addCategory(category)
         persist(message: "Moved to \(category)")
         relocateSnapshots(bindingID: binding.id, newCategory: category)
+        ActivityLog.shared.log(
+            .bindingCategory,
+            level: .normal,
+            title: "Moved binding \(binding.name) to \(category)",
+            details: ["binding": binding.name, "category": category, "bindingID": binding.id.uuidString]
+        )
     }
 
     func runBackup(_ binding: BackupBinding, style: FilenameStyle) {
@@ -488,8 +586,21 @@ final class LibraryState: ObservableObject {
         }
 
         let wasEmpty = snapshots.contains { $0.record.bindingID == binding.id } == false
+        let startedAt = Date()
         runningIDs.insert(binding.id)
         showStatus("Backing up \(binding.name.isEmpty ? sourceURL.lastPathComponent : binding.name)…")
+        ActivityLog.shared.log(
+            .backupStarted,
+            level: .minor,
+            title: "Backup started: \(binding.name)",
+            summary: sourceURL.path,
+            details: [
+                "binding": binding.name,
+                "source": sourceURL.path,
+                "store": store.name,
+                "category": binding.category
+            ]
+        )
 
         Task {
             do {
@@ -526,10 +637,44 @@ final class LibraryState: ObservableObject {
                 runningIDs.remove(binding.id)
                 let archived = bindings.first(where: { $0.id == binding.id })?.isArchived == true
                 persist(message: archived ? "Backed up and archived \(binding.name)" : "Backed up \(binding.name)")
+                let duration = Int(Date().timeIntervalSince(startedAt) * 1000)
+                ActivityLog.shared.log(
+                    .backupCompleted,
+                    level: .major,
+                    title: "Backed up \(binding.name)",
+                    summary: "\(result.record.id) · \(result.record.packaging.rawValue) · \(result.record.byteCount.map { fileSizeText($0) } ?? "unknown size")",
+                    details: [
+                        "binding": binding.name,
+                        "bindingID": binding.id.uuidString,
+                        "snapshotID": result.record.id,
+                        "fileName": result.record.renderedName,
+                        "path": result.record.absolutePath(storePath: store.path),
+                        "category": result.record.categoryPath,
+                        "store": store.name,
+                        "packaging": result.record.packaging.rawValue,
+                        "bytes": result.record.byteCount.map(String.init) ?? "",
+                        "source": result.record.sourcePath,
+                        "projectDate": result.record.projectDateText ?? "",
+                        "durationMs": String(duration),
+                        "archived": archived ? "true" : "false"
+                    ]
+                )
             } catch {
                 runningIDs.remove(binding.id)
                 errorMessage = "Backup failed: \(error.localizedDescription)"
                 statusMessage = ""
+                ActivityLog.shared.log(
+                    .backupFailed,
+                    level: .error,
+                    title: "Backup failed: \(binding.name)",
+                    summary: error.localizedDescription,
+                    details: [
+                        "binding": binding.name,
+                        "source": sourceURL.path,
+                        "store": store.name,
+                        "error": error.localizedDescription
+                    ]
+                )
             }
         }
     }
@@ -537,6 +682,7 @@ final class LibraryState: ObservableObject {
     func scan() {
         guard !isScanning else { return }
         isScanning = true
+        let startedAt = Date()
         showStatus(stores.isEmpty ? "Add a store to begin scanning" : "Scanning stores…")
         Task {
             refreshStorePaths()
@@ -549,6 +695,27 @@ final class LibraryState: ObservableObject {
             hydrateBindings()
             isScanning = false
             persist(message: outcome.report.summary)
+            let report = outcome.report
+            let duration = Int(Date().timeIntervalSince(startedAt) * 1000)
+            let changed = report.found > 0 || report.relocated > 0 || report.unmanaged > 0 || report.missing > 0
+            let level: ActivityLevel = report.errors.isEmpty ? (changed ? .normal : .minor) : .error
+            ActivityLog.shared.log(
+                .scan,
+                level: level,
+                actor: .scan,
+                title: "Scanned stores",
+                summary: report.summary,
+                details: [
+                    "onlineStores": String(report.onlineStores),
+                    "offlineStores": String(report.offlineStores),
+                    "found": String(report.found),
+                    "missing": String(report.missing),
+                    "relocated": String(report.relocated),
+                    "unmanaged": String(report.unmanaged),
+                    "errors": report.errors.joined(separator: " | "),
+                    "durationMs": String(duration)
+                ]
+            )
         }
     }
 
@@ -651,17 +818,39 @@ final class LibraryState: ObservableObject {
                 stores.append(ref)
             }
             persist(message: "Added store \(standardized.lastPathComponent)")
+            ActivityLog.shared.log(
+                .storeAdded,
+                level: .normal,
+                title: "Added store \(standardized.lastPathComponent)",
+                summary: standardized.path,
+                details: ["path": standardized.path, "label": standardized.lastPathComponent]
+            )
             scan()
         } catch {
             errorMessage = "Could not add store: \(error.localizedDescription)"
+            ActivityLog.shared.log(
+                .storeAdded,
+                level: .error,
+                title: "Could not add store",
+                summary: error.localizedDescription,
+                details: ["path": standardized.path, "error": error.localizedDescription]
+            )
         }
     }
 
     func removeStore(_ store: StoreRef) {
+        let removedSnapshots = snapshots.filter { $0.storeID == store.id }.count
         stores.removeAll { $0.id == store.id }
         snapshots.removeAll { $0.storeID == store.id }
         hydrateBindings()
         persist(message: "Removed store \(store.name)")
+        ActivityLog.shared.log(
+            .storeRemoved,
+            level: .normal,
+            title: "Removed store \(store.name)",
+            summary: store.path,
+            details: ["store": store.name, "storeID": store.id.uuidString, "path": store.path, "snapshots": String(removedSnapshots)]
+        )
     }
 
     func snapshotCount(for storeID: UUID) -> Int {
@@ -671,6 +860,7 @@ final class LibraryState: ObservableObject {
     func count(_ selection: SidebarSelection) -> Int {
         if selection == .backups { return snapshotGroups.count }
         if selection == .unmanaged { return unmanagedItems.count + unboundSnapshotGroups.count }
+        if selection == .timeline { return ActivityLog.shared.events.count }
         return bindings.filter { matchesSidebar($0, selection: selection) }.count
     }
 
@@ -730,12 +920,31 @@ final class LibraryState: ObservableObject {
                 }
             }.value
             switch result {
-            case .success:
+            case .success(let record):
                 unmanagedItems.removeAll { $0.id == item.id }
+                ActivityLog.shared.log(
+                    .unmanagedImported,
+                    level: .normal,
+                    title: "Imported \(item.name)",
+                    summary: "\(record.id) · \(item.storeName)",
+                    details: [
+                        "file": item.relativePath,
+                        "snapshotID": record.id,
+                        "store": item.storeName,
+                        "category": item.categoryPath
+                    ]
+                )
                 scan()
                 showStatus("Imported \(item.name)")
             case .failure(let error):
                 errorMessage = "Could not import: \(error.localizedDescription)"
+                ActivityLog.shared.log(
+                    .unmanagedImported,
+                    level: .error,
+                    title: "Could not import \(item.name)",
+                    summary: error.localizedDescription,
+                    details: ["file": item.relativePath, "store": item.storeName, "error": error.localizedDescription]
+                )
             }
         }
     }
@@ -750,9 +959,23 @@ final class LibraryState: ObservableObject {
                 catalog.revision += 1
             }
             unmanagedItems.removeAll { $0.id == item.id }
+            ActivityLog.shared.log(
+                .unmanagedIgnored,
+                level: .minor,
+                title: "Ignored \(item.name)",
+                summary: item.relativePath,
+                details: ["file": item.relativePath, "store": item.storeName]
+            )
             showStatus("Ignored \(item.name)")
         } catch {
             errorMessage = "Could not ignore: \(error.localizedDescription)"
+            ActivityLog.shared.log(
+                .unmanagedIgnored,
+                level: .error,
+                title: "Could not ignore \(item.name)",
+                summary: error.localizedDescription,
+                details: ["file": item.relativePath, "store": item.storeName, "error": error.localizedDescription]
+            )
         }
     }
 
@@ -812,6 +1035,18 @@ final class LibraryState: ObservableObject {
                 errorMessage = "Verification failed for \(result.1) snapshot\(result.1 == 1 ? "" : "s")."
             }
             showStatus("Verified \(result.0) · \(result.1) failed · \(result.2) skipped")
+            ActivityLog.shared.log(
+                .snapshotVerified,
+                level: result.1 > 0 ? .error : .normal,
+                title: result.1 > 0 ? "Verification failed" : "Verified snapshots",
+                summary: "\(result.0) verified · \(result.1) failed · \(result.2) skipped",
+                details: [
+                    "snapshotIDs": ids.sorted().joined(separator: ","),
+                    "verified": String(result.0),
+                    "failed": String(result.1),
+                    "skipped": String(result.2)
+                ]
+            )
         }
     }
 
@@ -872,6 +1107,18 @@ final class LibraryState: ObservableObject {
             if !result.3.isEmpty {
                 errorMessage = result.3[0]
             }
+            ActivityLog.shared.log(
+                .snapshotDeleted,
+                level: result.3.isEmpty ? .major : .error,
+                title: "Deleted \(result.0) backup record\(result.0 == 1 ? "" : "s")",
+                summary: "Moved to macOS Trash · \(result.1) offline skipped",
+                details: [
+                    "snapshotIDs": result.2.sorted().joined(separator: ","),
+                    "deleted": String(result.0),
+                    "skipped": String(result.1),
+                    "errors": result.3.joined(separator: " | ")
+                ]
+            )
         }
     }
 
@@ -985,6 +1232,21 @@ final class LibraryState: ObservableObject {
             if !result.errors.isEmpty {
                 errorMessage = result.errors[0]
             }
+            ActivityLog.shared.log(
+                .snapshotRenamed,
+                level: result.renamed > 0 ? .major : .normal,
+                title: result.renamed > 0 ? "Renamed \(result.renamed) snapshot\(result.renamed == 1 ? "" : "s")" : "Rename produced no changes",
+                summary: "format: \(normalized)",
+                details: [
+                    "format": normalized,
+                    "requested": String(ids.count),
+                    "renamed": String(result.renamed),
+                    "unchanged": String(result.unchanged),
+                    "conflicts": String(result.conflicts),
+                    "snapshotIDs": ids.sorted().joined(separator: ","),
+                    "errors": result.errors.joined(separator: " | ")
+                ]
+            )
         }
     }
 
@@ -1108,6 +1370,21 @@ final class LibraryState: ObservableObject {
             if let error = result.errors.first {
                 errorMessage = error
             }
+            ActivityLog.shared.log(
+                .snapshotAssigned,
+                level: result.errors.isEmpty ? .major : .error,
+                title: "Moved \(result.assigned) backup\(result.assigned == 1 ? "" : "s") to \(binding.name)",
+                summary: "Owner changed · category \(binding.category)",
+                details: [
+                    "binding": binding.name,
+                    "bindingID": binding.id.uuidString,
+                    "category": binding.category,
+                    "assigned": String(result.assigned),
+                    "skipped": String(result.skipped),
+                    "snapshotIDs": ids.sorted().joined(separator: ","),
+                    "errors": result.errors.joined(separator: " | ")
+                ]
+            )
         }
     }
 
@@ -1178,6 +1455,20 @@ final class LibraryState: ObservableObject {
             if !result.2.isEmpty {
                 errorMessage = result.2[0]
             }
+            ActivityLog.shared.log(
+                .snapshotMovedStore,
+                level: result.0 > 0 ? .normal : .minor,
+                title: result.0 > 0 ? "Moved \(result.0) backup\(result.0 == 1 ? "" : "s") to \(targetStore.name)" : "No backups moved to \(targetStore.name)",
+                summary: "\(result.1) skipped",
+                details: [
+                    "targetStore": targetStore.name,
+                    "targetStoreID": targetStore.id.uuidString,
+                    "moved": String(result.0),
+                    "skipped": String(result.1),
+                    "snapshotIDs": ids.sorted().joined(separator: ","),
+                    "errors": result.2.joined(separator: " | ")
+                ]
+            )
         }
     }
 
@@ -1267,6 +1558,58 @@ final class LibraryState: ObservableObject {
                 errorMessage = "Some snapshots could not be moved: \(result.2[0])"
             }
         }
+    }
+
+    private func bindingDetails(_ binding: BackupBinding) -> [String: String] {
+        [
+            "name": binding.name,
+            "bindingID": binding.id.uuidString,
+            "kind": binding.kind.rawValue,
+            "category": binding.category,
+            "source": binding.sourcePath,
+            "store": store(for: binding)?.name ?? "None",
+            "storeID": binding.storeID?.uuidString ?? "",
+            "compress": binding.compressBackups ? "true" : "false",
+            "archiveAfterFirst": binding.archiveAfterFirstBackup ? "true" : "false",
+            "gitHistory": binding.includeGitMetadata ? "true" : "false",
+            "respectGitignore": binding.respectsGitignore ? "true" : "false",
+            "filenameFormat": binding.filenameFormat,
+            "creators": BindingCreator.allCases.filter { binding.creators.contains($0) }.map(\.rawValue).joined(separator: ", "),
+            "tone": binding.tone.rawValue,
+            "coverIcon": binding.iconName ?? "",
+            "previewFile": binding.previewFilePath ?? binding.previewImagePath ?? "",
+            "showPreviewOnCover": binding.showPreviewOnCover ? "true" : "false",
+            "note": binding.note ?? "",
+            "favorite": binding.isFavorite ? "true" : "false",
+            "archived": binding.isArchived ? "true" : "false"
+        ]
+    }
+
+    private func bindingChanges(from old: BackupBinding, to new: BackupBinding) -> String {
+        var changes: [String] = []
+        func add(_ name: String, _ before: String, _ after: String) {
+            guard before != after else { return }
+            changes.append("\(name): \(before) → \(after)")
+        }
+        add("name", old.name, new.name)
+        add("category", old.category, new.category)
+        add("kind", old.kind.rawValue, new.kind.rawValue)
+        add("source", old.sourcePath, new.sourcePath)
+        add("store", store(for: old)?.name ?? "", store(for: new)?.name ?? "")
+        add("compress", old.compressBackups ? "true" : "false", new.compressBackups ? "true" : "false")
+        add("archiveAfterFirst", old.archiveAfterFirstBackup ? "true" : "false", new.archiveAfterFirstBackup ? "true" : "false")
+        add("gitHistory", old.includeGitMetadata ? "true" : "false", new.includeGitMetadata ? "true" : "false")
+        add("respectGitignore", old.respectsGitignore ? "true" : "false", new.respectsGitignore ? "true" : "false")
+        add("filenameFormat", old.filenameFormat, new.filenameFormat)
+        add("tone", old.tone.rawValue, new.tone.rawValue)
+        add("coverIcon", old.iconName ?? "", new.iconName ?? "")
+        add("previewFile", old.previewFilePath ?? old.previewImagePath ?? "", new.previewFilePath ?? new.previewImagePath ?? "")
+        add("showPreviewOnCover", old.showPreviewOnCover ? "true" : "false", new.showPreviewOnCover ? "true" : "false")
+        add("note", old.note ?? "", new.note ?? "")
+        let oldCreators = BindingCreator.allCases.filter { old.creators.contains($0) }.map(\.rawValue).joined(separator: ", ")
+        let newCreators = BindingCreator.allCases.filter { new.creators.contains($0) }.map(\.rawValue).joined(separator: ", ")
+        add("creators", oldCreators, newCreators)
+        return changes.isEmpty ? "none" : changes.joined(separator: "; ")
     }
 
     private func persist(message: String) {
