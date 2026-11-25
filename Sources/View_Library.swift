@@ -522,11 +522,11 @@ private struct LibrarySidebar: View {
                 Spacer()
                 Image(systemName: "house")
                     .font(.system(size: 13))
-                    .foregroundStyle(Color.primary.opacity(0.28))
+                    .foregroundStyle(Color.primary.opacity(0.45))
                 Button(action: openSettings) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.primary.opacity(hoveringSettings ? 0.82 : 0.28))
+                        .foregroundStyle(Color.primary.opacity(hoveringSettings ? 0.90 : 0.45))
                         .frame(width: 25, height: 23)
                         .background(
                             hoveringSettings ? Color.primary.opacity(0.065) : Color.clear,
@@ -568,7 +568,7 @@ private struct LibrarySidebar: View {
                         Text("\(count)")
                             .font(.bindery(11.5, .medium))
                             .monospacedDigit()
-                            .foregroundStyle(Color.primary.opacity(0.25))
+                            .foregroundStyle(Color.appTertiaryText)
                     }
                     Spacer()
                 }
@@ -646,7 +646,7 @@ private struct LibrarySidebar: View {
                 Text("\(node.totalBindingCount)")
                     .font(.bindery(13, .medium))
                     .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.30))
+                    .foregroundStyle(Color.appTertiaryText)
                     .frame(width: 30, alignment: .trailing)
             }
             .padding(.leading, CGFloat(node.depth) * 14 + 11)
@@ -755,7 +755,7 @@ private struct LibrarySidebar: View {
                 Text("\(state.count(item))")
                     .font(.bindery(13, .medium))
                     .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.30))
+                    .foregroundStyle(Color.appTertiaryText)
             }
             .padding(.horizontal, 11)
             .frame(height: 30)
@@ -835,13 +835,13 @@ private struct LibraryToolbar: View {
             HStack(spacing: 9) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14.5, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.36))
+                    .foregroundStyle(Color.primary.opacity(0.55))
                 TextField(
                     "",
                     text: $search,
                     prompt: Text(searchPlaceholder)
                         .font(.bindery(15))
-                        .foregroundColor(Color.primary.opacity(0.34))
+                        .foregroundColor(Color.appSecondaryText)
                 )
                 .font(.bindery(15))
                 .focused(searchFocused)
@@ -853,7 +853,7 @@ private struct LibraryToolbar: View {
                     Button { search = "" } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 13))
-                            .foregroundStyle(Color.primary.opacity(0.28))
+                            .foregroundStyle(Color.primary.opacity(0.45))
                     }
                     .buttonStyle(.plain)
                 }
@@ -1011,7 +1011,7 @@ private struct LibraryContent: View {
                             .foregroundStyle(Color.primary.opacity(0.96))
                         Text("\(bindings.count) projects")
                             .font(.bindery(15, .medium))
-                            .foregroundStyle(Color.primary.opacity(0.38))
+                            .foregroundStyle(Color.appSecondaryText)
                     }
                     Spacer()
                     HStack(spacing: 6) {
@@ -1102,7 +1102,7 @@ private struct LibraryContent: View {
             Spacer()
         }
         .font(.bindery(12.5, .semibold))
-        .foregroundStyle(Color.primary.opacity(0.32))
+        .foregroundStyle(Color.appSecondaryText)
         .padding(.horizontal, 14)
         .frame(height: 30)
     }
@@ -1178,7 +1178,7 @@ private struct ActivityStrip: View {
                         .frame(height: 38, alignment: .bottom)
                     Text(point.label)
                         .font(.bindery(12.5, .medium))
-                        .foregroundStyle(Color.primary.opacity(0.34))
+                        .foregroundStyle(Color.appSecondaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.62)
                 }
@@ -1235,8 +1235,8 @@ private struct BindingListRow: View {
                 .lineLimit(1)
                 .frame(width: 170, alignment: .leading)
             Text(binding.category)
-                .font(.bindery(11.5, .medium))
-                .foregroundStyle(Color.primary.opacity(0.64))
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
                 .lineLimit(1)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3.5)
@@ -1245,19 +1245,19 @@ private struct BindingListRow: View {
             StatusDotText(
                 text: statusText,
                 color: statusDot,
-                font: .bindery(12, .medium)
+                font: .bindery(12.5, .medium)
             )
-            .foregroundStyle(Color.primary.opacity(0.52))
+            .foregroundStyle(Color.appSecondaryText)
             .frame(width: 125, alignment: .leading)
             Text(lastBackupText)
-                .font(.bindery(12, .medium))
-                .foregroundStyle(Color.primary.opacity(0.48))
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
                 .monospacedDigit()
                 .lineLimit(1)
                 .frame(width: 115, alignment: .leading)
             Text(backupSizeText)
-                .font(.bindery(12, .medium))
-                .foregroundStyle(Color.primary.opacity(0.48))
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
                 .monospacedDigit()
                 .frame(width: 82, alignment: .leading)
             HStack(spacing: 5) {
@@ -1265,8 +1265,8 @@ private struct BindingListRow: View {
                     .font(.system(size: 11))
                 Text(binding.kind.rawValue)
             }
-            .font(.bindery(11.5, .medium))
-            .foregroundStyle(Color.primary.opacity(0.48))
+            .font(.bindery(12, .medium))
+            .foregroundStyle(Color.appSecondaryText)
             .frame(width: 65, alignment: .leading)
             Spacer()
             if isRunning {
@@ -1274,10 +1274,10 @@ private struct BindingListRow: View {
             }
             Image(systemName: binding.isFavorite ? "star.fill" : "star")
                 .font(.system(size: 11))
-                .foregroundStyle(binding.isFavorite ? Color(rgb: 0xE9B75F) : Color.primary.opacity(0.18))
+                .foregroundStyle(binding.isFavorite ? Color(rgb: 0xE9B75F) : Color.primary.opacity(0.35))
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.primary.opacity(0.20))
+                .foregroundStyle(Color.primary.opacity(0.35))
         }
         .padding(.horizontal, 14)
         .frame(height: 50)
@@ -1696,8 +1696,8 @@ private struct BackupHeatmapPanel: View {
                     .font(.bindery(15, .semibold))
                 Spacer()
                 Text("Past year")
-                    .font(.bindery(10.5, .medium))
-                    .foregroundStyle(Color.primary.opacity(0.32))
+                    .font(.bindery(11.5, .medium))
+                    .foregroundStyle(Color.appSecondaryText)
             }
             LazyHGrid(
                 rows: Array(repeating: GridItem(.fixed(8), spacing: 2), count: 7),
@@ -1735,16 +1735,16 @@ private struct BackupHistoryPanel: View {
                 Text("Backup Records")
                     .font(.bindery(16, .semibold))
                 Text("\(records.count)")
-                    .font(.bindery(11, .semibold))
+                    .font(.bindery(11.5, .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.40))
+                    .foregroundStyle(Color.appSecondaryText)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
                     .background(Color.primary.opacity(0.06), in: Capsule())
                 Spacer()
                 Text(backupStatusText(for: binding, isRunning: false))
-                    .font(.bindery(10.5, .medium))
-                    .foregroundStyle(Color.primary.opacity(0.34))
+                    .font(.bindery(11.5, .medium))
+                    .foregroundStyle(Color.appSecondaryText)
                     .lineLimit(1)
                 Button(action: openBackups) {
                     HStack(spacing: 4) {
@@ -1768,8 +1768,8 @@ private struct BackupHistoryPanel: View {
                             .font(.bindery(12.5, .semibold))
                             .foregroundStyle(Color.primary.opacity(0.62))
                         Text("Click Backup to create the first snapshot.")
-                            .font(.bindery(11.5))
-                            .foregroundStyle(Color.primary.opacity(0.34))
+                            .font(.bindery(12))
+                            .foregroundStyle(Color.appSecondaryText)
                     }
                     Spacer()
                 }
@@ -1809,16 +1809,16 @@ private struct BackupHistoryPanel: View {
                 .fixedSize()
 
             Text(snapshotName(record))
-                .font(.bindery(11.5))
-                .foregroundStyle(Color.primary.opacity(record.snapshotPath.isEmpty ? 0.28 : 0.42))
+                .font(.bindery(12.5))
+                .foregroundStyle(record.snapshotPath.isEmpty ? Color.appTertiaryText : Color.appSecondaryText)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .layoutPriority(0)
 
             if let projectDate = record.projectDate {
                 Text("Project \(BackupFilenameFormat.dateText(projectDate, pattern: "yyMMdd", fallback: "yyMMdd"))")
-                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.appOrange.opacity(0.80))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.appOrange.opacity(0.95))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
                     .background(Color.appOrange.opacity(0.10), in: Capsule())
@@ -1985,8 +1985,8 @@ private struct BindingDetailsPanel: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.bindery(11, .semibold))
-            .foregroundStyle(Color.primary.opacity(0.30))
+            .font(.bindery(11.5, .semibold))
+            .foregroundStyle(Color.appTertiaryText)
             .textCase(.uppercase)
             .padding(.top, 1)
     }
@@ -1994,12 +1994,12 @@ private struct BindingDetailsPanel: View {
     private func detailRow(_ label: String, _ value: String) -> some View {
         GridRow {
             Text(label)
-                .font(.bindery(13, .medium))
-                .foregroundStyle(Color.primary.opacity(0.34))
+                .font(.bindery(13.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
                 .frame(width: 104, alignment: .leading)
             Text(value)
-                .font(.bindery(13.5))
-                .foregroundStyle(Color.primary.opacity(0.70))
+                .font(.bindery(14))
+                .foregroundStyle(Color.primary.opacity(0.82))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(value)
@@ -2009,8 +2009,8 @@ private struct BindingDetailsPanel: View {
     private func pathRow(_ label: String, path: String) -> some View {
         HStack(alignment: .center, spacing: 20) {
             Text(label)
-                .font(.bindery(13, .medium))
-                .foregroundStyle(Color.primary.opacity(0.34))
+                .font(.bindery(13.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
                 .frame(width: 104, alignment: .leading)
             PathValueView(path: path)
                 .lineLimit(1)
@@ -2377,8 +2377,8 @@ private struct BindingEditor: View {
     private func editorSection(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title)
-                .font(.bindery(11, .semibold))
-                .foregroundStyle(Color.primary.opacity(0.30))
+                .font(.bindery(11.5, .semibold))
+                .foregroundStyle(Color.appTertiaryText)
                 .textCase(.uppercase)
             Divider().opacity(0.5)
         }
@@ -2547,8 +2547,8 @@ private struct BindingEditor: View {
         HStack(alignment: .center, spacing: 12) {
             Text(title)
                 .font(.bindery(13.5, .medium))
-                .foregroundStyle(Color.primary.opacity(0.44))
-                .frame(width: 76, alignment: .leading)
+                .foregroundStyle(Color.appSecondaryText)
+                .frame(width: 86, alignment: .leading)
             content()
         }
     }

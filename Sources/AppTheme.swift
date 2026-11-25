@@ -34,6 +34,10 @@ extension Color {
     static let appOrange = Color(nsColor: adaptive(light: srgb(0xB26A24), dark: srgb(0xE6A261)))
     static let appRed = Color(nsColor: adaptive(light: srgb(0xB4544A), dark: srgb(0xD97B6D)))
     static let appGray = Color(nsColor: adaptive(light: srgb(0x6E7580), dark: srgb(0x8B9098)))
+    /// Secondary text that must remain readable in both appearances.
+    static let appSecondaryText = Color(nsColor: adaptive(light: srgb(0x5F646C), dark: srgb(0xA6ADB8)))
+    /// Tertiary text for IDs, timestamps, and quiet metadata.
+    static let appTertiaryText = Color(nsColor: adaptive(light: srgb(0x737983), dark: srgb(0x939AA5)))
 }
 
 extension NSColor {

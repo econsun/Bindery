@@ -681,17 +681,17 @@ struct BindingFolderCard: View {
                 color: statusDot,
                 font: .bindery(13.5, .medium)
             )
-            .foregroundStyle(palette.ink.opacity(0.78))
+            .foregroundStyle(palette.ink.opacity(0.90))
 
             if let backupSummaryText {
                 HStack(spacing: 4.5) {
                     Image(systemName: "archivebox")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                     Text(backupSummaryText)
-                        .font(.bindery(11.5, .medium))
+                        .font(.bindery(12, .medium))
                         .lineLimit(1)
                 }
-                .foregroundStyle(palette.ink.opacity(0.50))
+                .foregroundStyle(palette.ink.opacity(0.70))
             }
 
             Spacer(minLength: 0)
@@ -700,8 +700,8 @@ struct BindingFolderCard: View {
                 Spacer(minLength: 4)
 
                 Text(binding.category)
-                    .font(.bindery(10.5, .semibold))
-                    .foregroundStyle(palette.ink.opacity(0.92))
+                    .font(.bindery(11, .semibold))
+                    .foregroundStyle(palette.ink.opacity(0.98))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .padding(.horizontal, 7)

@@ -56,7 +56,7 @@ struct TimelineView: View {
                     .foregroundStyle(Color.primary.opacity(0.96))
                 Text("\(visibleEvents.count) event\(visibleEvents.count == 1 ? "" : "s") · persistent JSONL activity log")
                     .font(.bindery(15, .medium))
-                    .foregroundStyle(Color.primary.opacity(0.38))
+                    .foregroundStyle(Color.appSecondaryText)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 7) {
@@ -76,8 +76,8 @@ struct TimelineView: View {
                     .buttonStyle(TimelineHeaderButtonStyle())
                 }
                 Text(presentPath(ActivityLog.logURL.path).short)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(Color.primary.opacity(0.26))
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(Color.appTertiaryText)
                     .lineLimit(1)
                     .help(ActivityLog.logURL.path)
             }
@@ -99,8 +99,8 @@ struct TimelineView: View {
                     expanded.removeAll()
                 }
                 .buttonStyle(.plain)
-                .font(.bindery(11, .medium))
-                .foregroundStyle(Color.primary.opacity(0.36))
+                .font(.bindery(11.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
             }
         }
         .padding(.top, 2)
@@ -113,9 +113,9 @@ struct TimelineView: View {
                     .font(.bindery(13, .semibold))
                     .foregroundStyle(Color.primary.opacity(0.54))
                 Text("\(group.events.count)")
-                    .font(.bindery(10.5, .semibold))
+                    .font(.bindery(11, .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.26))
+                    .foregroundStyle(Color.appTertiaryText)
                 Spacer()
             }
             .padding(.horizontal, 4)
@@ -151,8 +151,8 @@ struct TimelineView: View {
             Text(activity.events.isEmpty
                  ? "Backups, edits, moves, deletes, and scans will appear here as a durable timeline."
                  : "Try another search or filter.")
-                .font(.bindery(12))
-                .foregroundStyle(Color.primary.opacity(0.38))
+                .font(.bindery(12.5))
+                .foregroundStyle(Color.appSecondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 320)
@@ -220,9 +220,9 @@ private struct TimelineEventRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Text(Self.timeFormatter.string(from: event.timestamp))
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(Color.primary.opacity(0.28))
-                .frame(width: 54, alignment: .trailing)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color.appTertiaryText)
+                .frame(width: 58, alignment: .trailing)
                 .padding(.top, 3)
 
             timelineRail
@@ -239,8 +239,8 @@ private struct TimelineEventRow: View {
                         .lineLimit(2)
                     if event.actor != .user {
                         Text(event.actor.rawValue)
-                            .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(Color.primary.opacity(0.26))
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Color.appTertiaryText)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
@@ -250,7 +250,7 @@ private struct TimelineEventRow: View {
                         Button(action: toggle) {
                             Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 8.5, weight: .bold))
-                                .foregroundStyle(Color.primary.opacity(0.26))
+                                .foregroundStyle(Color.primary.opacity(0.45))
                                 .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.plain)
@@ -259,8 +259,8 @@ private struct TimelineEventRow: View {
 
                 if !event.summary.isEmpty {
                     Text(event.summary)
-                        .font(.bindery(11.5))
-                        .foregroundStyle(Color.primary.opacity(event.level == .minor ? 0.30 : 0.46))
+                        .font(.bindery(12))
+                        .foregroundStyle(event.level == .minor ? Color.appTertiaryText : Color.appSecondaryText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -310,12 +310,12 @@ private struct TimelineEventRow: View {
             ForEach(event.details.keys.sorted(), id: \.self) { key in
                 HStack(alignment: .top, spacing: 8) {
                     Text(key)
-                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.primary.opacity(0.30))
-                        .frame(width: 104, alignment: .leading)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.appTertiaryText)
+                        .frame(width: 108, alignment: .leading)
                     Text(event.details[key] ?? "")
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(Color.primary.opacity(0.54))
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(Color.appSecondaryText)
                         .lineLimit(4)
                         .textSelection(.enabled)
                     Spacer(minLength: 0)
@@ -332,7 +332,7 @@ private struct TimelineEventRow: View {
         case .major: return .bindery(14, .semibold)
         case .error: return .bindery(14, .semibold)
         case .normal: return .bindery(13, .medium)
-        case .minor: return .bindery(12.5)
+        case .minor: return .bindery(13)
         }
     }
 
@@ -384,7 +384,7 @@ private struct TimelineFilterButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.bindery(11.5, .medium))
-            .foregroundStyle(selected ? Color.white : Color.primary.opacity(0.54))
+            .foregroundStyle(selected ? Color.white : Color.appSecondaryText)
             .padding(.horizontal, 10)
             .frame(height: 26)
             .background(

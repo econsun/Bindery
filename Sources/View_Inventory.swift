@@ -245,7 +245,7 @@ struct SnapshotInventoryView: View {
                     .foregroundStyle(Color.primary.opacity(0.96))
                 Text(subtitle)
                     .font(.bindery(15, .medium))
-                    .foregroundStyle(Color.primary.opacity(0.38))
+                    .foregroundStyle(Color.appSecondaryText)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 8) {
@@ -433,8 +433,8 @@ struct SnapshotInventoryView: View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 5, height: 5)
             Text(text)
-                .font(.bindery(10.5, .medium))
-                .foregroundStyle(Color.primary.opacity(0.32))
+                .font(.bindery(11.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
         }
     }
 
@@ -442,12 +442,12 @@ struct SnapshotInventoryView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
                 Text(dayLabel(group.day))
-                    .font(.bindery(13, .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.54))
+                    .font(.bindery(13.5, .semibold))
+                    .foregroundStyle(Color.appSecondaryText)
                 Text("\(group.items.count)")
-                    .font(.bindery(10.5, .semibold))
+                    .font(.bindery(11, .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.26))
+                    .foregroundStyle(Color.appTertiaryText)
                 Spacer()
             }
             .padding(.horizontal, 4)
@@ -573,8 +573,8 @@ struct SnapshotInventoryView: View {
             Text(query.isEmpty
                  ? (categoryFilter == nil ? "Run a binding or drop a file onto a generator card." : "Backups for this category will appear here.")
                  : "Try a different name, category, store, or snapshot ID.")
-                .font(.bindery(12))
-                .foregroundStyle(Color.primary.opacity(0.38))
+                .font(.bindery(12.5))
+                .foregroundStyle(Color.appSecondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 300)
@@ -627,7 +627,7 @@ struct SnapshotInventoryRow: View {
             if selecting {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.22))
+                    .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.36))
                     .frame(width: 20, height: 20)
             }
 
@@ -641,16 +641,16 @@ struct SnapshotInventoryRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Text(record.id)
-                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.primary.opacity(0.28))
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.appTertiaryText)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .help("Permanent snapshot ID")
                     if let projectText {
                         Text("Project \(projectText)")
-                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.appOrange.opacity(0.82))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.appOrange.opacity(0.95))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
                             .background(Color.appOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
@@ -658,7 +658,7 @@ struct SnapshotInventoryRow: View {
                     }
                     if group.copyCount > 1 {
                         Text("\(group.copyCount) copies")
-                            .font(.bindery(9, .semibold))
+                            .font(.bindery(10, .semibold))
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
@@ -680,8 +680,8 @@ struct SnapshotInventoryRow: View {
                         Text(record.sourceName)
                     }
                 }
-                .font(.bindery(11))
-                .foregroundStyle(Color.primary.opacity(0.36))
+                .font(.bindery(12))
+                .foregroundStyle(Color.appSecondaryText)
                 .lineLimit(1)
             }
 
@@ -690,23 +690,23 @@ struct SnapshotInventoryRow: View {
             HStack(spacing: 5) {
                 Circle().fill(statusColor).frame(width: 5, height: 5)
                 Text(statusText)
-                    .font(.bindery(10.5, .medium))
-                    .foregroundStyle(statusColor.opacity(0.90))
+                    .font(.bindery(11.5, .medium))
+                    .foregroundStyle(statusColor.opacity(0.95))
             }
             .frame(width: 72, alignment: .leading)
 
             Text(sizeText)
-                .font(.bindery(11, .medium))
+                .font(.bindery(12, .medium))
                 .monospacedDigit()
-                .foregroundStyle(Color.primary.opacity(0.38))
-                .frame(width: 66, alignment: .trailing)
+                .foregroundStyle(Color.appSecondaryText)
+                .frame(width: 70, alignment: .trailing)
 
             Button {
                 state.reveal(group.primary.absolutePath)
             } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(group.availability == .available ? 0.50 : 0.18))
+                    .foregroundStyle(Color.primary.opacity(group.availability == .available ? 0.64 : 0.26))
                     .frame(width: 24, height: 24)
                     .background(Color.primary.opacity(0.045), in: Circle())
             }
@@ -715,7 +715,7 @@ struct SnapshotInventoryRow: View {
             .help(group.availability == .available ? group.primary.absolutePath : group.primary.statusText)
         }
         .padding(.horizontal, 12)
-        .frame(height: 54)
+        .frame(height: 56)
         .background(
             Color.primary.opacity(selected ? 0.075 : (hovering ? 0.05 : 0.018)),
             in: RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -732,14 +732,14 @@ struct SnapshotInventoryRow: View {
                 .fill(Color.primary.opacity(0.05))
             Image(systemName: record.packaging.icon)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.44))
+                .foregroundStyle(Color.primary.opacity(0.62))
         }
         .frame(width: 32, height: 32)
     }
 
     private var separator: some View {
         Circle()
-            .fill(Color.primary.opacity(0.16))
+            .fill(Color.primary.opacity(0.30))
             .frame(width: 2.5, height: 2.5)
     }
 

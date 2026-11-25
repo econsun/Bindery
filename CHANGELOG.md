@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 — 2026-11-25
+
+- Increased secondary and tertiary text contrast in both light and dark mode.
+- Larger metadata text in All Backups, Unmanaged, Timeline, binding lists, sidebar counts, detail panels, and editor labels.
+- Snapshot IDs, sizes, timestamps, project badges, and “No binding” labels are now readable instead of almost invisible.
+
 ## 1.1.0 — 2026-11-25
 
 - Added a durable JSONL activity log and a visual **Timeline** in the sidebar.

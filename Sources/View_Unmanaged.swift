@@ -273,7 +273,7 @@ struct UnmanagedView: View {
                     .foregroundStyle(Color.primary.opacity(0.96))
                 Text(subtitle)
                     .font(.bindery(15, .medium))
-                    .foregroundStyle(Color.primary.opacity(0.38))
+                    .foregroundStyle(Color.appSecondaryText)
             }
             Spacer()
             if unboundGroups.isEmpty == false {
@@ -301,12 +301,12 @@ struct UnmanagedView: View {
     private func sectionHeader(_ title: String, count: Int) -> some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.bindery(13, .semibold))
-                .foregroundStyle(Color.primary.opacity(0.54))
+                .font(.bindery(13.5, .semibold))
+                .foregroundStyle(Color.appSecondaryText)
             Text("\(count)")
-                .font(.bindery(10.5, .semibold))
+                .font(.bindery(11, .semibold))
                 .monospacedDigit()
-                .foregroundStyle(Color.primary.opacity(0.26))
+                .foregroundStyle(Color.appTertiaryText)
             Spacer()
         }
         .padding(.horizontal, 4)
@@ -324,8 +324,8 @@ struct UnmanagedView: View {
             Text(query.isEmpty
                  ? "Every backup belongs to a binding, and every file in the stores is either a snapshot or explicitly ignored."
                  : "Try a different name, store, or snapshot ID.")
-                .font(.bindery(12))
-                .foregroundStyle(Color.primary.opacity(0.38))
+                .font(.bindery(12.5))
+                .foregroundStyle(Color.appSecondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 300)
@@ -460,13 +460,13 @@ private struct UnmanagedRow: View {
                     .fill(Color.primary.opacity(0.05))
                 Image(systemName: "doc")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.44))
+                    .foregroundStyle(Color.primary.opacity(0.62))
             }
             .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
-                    .font(.bindery(13.5, .semibold))
+                    .font(.bindery(14, .semibold))
                     .foregroundStyle(Color.primary.opacity(0.90))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -477,8 +477,8 @@ private struct UnmanagedRow: View {
                     separator
                     Text(item.relativePath)
                 }
-                .font(.bindery(11))
-                .foregroundStyle(Color.primary.opacity(0.36))
+                .font(.bindery(12))
+                .foregroundStyle(Color.appSecondaryText)
                 .lineLimit(1)
                 .truncationMode(.middle)
             }
@@ -486,10 +486,10 @@ private struct UnmanagedRow: View {
             Spacer(minLength: 8)
 
             Text(sizeText)
-                .font(.bindery(11, .medium))
+                .font(.bindery(12, .medium))
                 .monospacedDigit()
-                .foregroundStyle(Color.primary.opacity(0.38))
-                .frame(width: 66, alignment: .trailing)
+                .foregroundStyle(Color.appSecondaryText)
+                .frame(width: 70, alignment: .trailing)
 
             Button("Import") {
                 state.importUnmanaged(item)
@@ -514,7 +514,7 @@ private struct UnmanagedRow: View {
 
     private var separator: some View {
         Circle()
-            .fill(Color.primary.opacity(0.16))
+            .fill(Color.primary.opacity(0.30))
             .frame(width: 2.5, height: 2.5)
     }
 
