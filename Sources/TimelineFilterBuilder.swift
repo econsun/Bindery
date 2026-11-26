@@ -16,6 +16,8 @@ enum TimelineFilterField: String, Codable, CaseIterable, Identifiable {
     case title
     case summary
     case details
+    case group
+    case automaticScan
     case time
 
     var id: String { rawValue }
@@ -29,13 +31,15 @@ enum TimelineFilterField: String, Codable, CaseIterable, Identifiable {
         case .title: return "Title"
         case .summary: return "Summary"
         case .details: return "Details"
+        case .group: return "Group"
+        case .automaticScan: return "Auto scan"
         case .time: return "Time"
         }
     }
 
     var operators: [TimelineFilterOperator] {
         switch self {
-        case .type, .level, .actor, .kind:
+        case .type, .level, .actor, .kind, .group, .automaticScan:
             return [.isExactly, .isNot]
         case .title, .summary, .details:
             return [.isExactly, .isNot, .contains, .doesNotContain, .startsWith, .endsWith, .isEmpty, .isNotEmpty]
@@ -110,6 +114,18 @@ enum TimelineType: String, Codable, CaseIterable, Identifiable {
         case .scan: return "Scans"
         case .system: return "System"
         case .unmanaged: return "Unmanaged"
+        }
+    }
+}
+
+extension ActivityKind.Group {
+    var tint: Color {
+        switch self {
+        case .backup: return Color.appGreen
+        case .change: return Color(rgb: 0xA855F7)
+        case .scan: return Color(rgb: 0x14B8A6)
+        case .store: return Color(rgb: 0xA855F7)
+        case .system: return Color.appGray
         }
     }
 }
@@ -191,6 +207,41 @@ extension ActivityKind {
     }
 }
 
+enum TimelineGroupValue: String, Codable, CaseIterable, Identifiable {
+    case changes
+    case backups
+    case scans
+    case stores
+    case system
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .changes: return "Changes"
+        case .backups: return "Backups"
+        case .scans: return "Scans"
+        case .stores: return "Stores"
+        case .system: return "System"
+        }
+    }
+
+    func matches(_ kind: ActivityKind) -> Bool {
+        switch self {
+        case .changes: return kind.group == .change || kind.group == .store
+        case .backups: return kind.group == .backup
+        case .scans: return kind.group == .scan
+        case .stores: return kind.group == .store
+        case .system: return kind.group == .system
+        }
+    }
+}
+
+enum TimelineFilterOrigin: String, Codable {
+    case user
+    case quick
+    case system
+}
+
 struct TimelineFilterCondition: Codable, Identifiable, Equatable {
     var id = UUID()
     var field: TimelineFilterField = .type
@@ -200,6 +251,9 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
     var level: ActivityLevel = .normal
     var actor: ActivityActor = .user
     var kind: ActivityKind = .backupCompleted
+    var groupValue: TimelineGroupValue? = nil
+    var boolValue: Bool? = nil
+    var origin: TimelineFilterOrigin? = nil
     var start: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
     var end: Date = Date()
 
@@ -207,6 +261,9 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
         var condition = TimelineFilterCondition()
         condition.field = field
         condition.operation = field.defaultOperator
+        if field == .group { condition.groupValue = .changes }
+        if field == .automaticScan { condition.boolValue = false }
+        condition.origin = .user
         return condition
     }
 
@@ -229,6 +286,12 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
                 .map { "\($0): \(event.details[$0] ?? "")" }
                 .joined(separator: "\n")
             return textMatch(text)
+        case .group:
+            return compare((groupValue ?? .changes).matches(event.kind))
+        case .automaticScan:
+            let automatic = event.kind == .scan
+                && (event.details["trigger"] == "automatic" || event.details["trigger"] == nil)
+            return compare(automatic == (boolValue ?? false))
         case .time:
             switch operation {
             case .before: return event.timestamp < start
@@ -529,6 +592,29 @@ private struct TimelineFilterConditionRow: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.bindery(11.5))
                 .frame(maxWidth: .infinity)
+        case .group:
+            Picker("", selection: Binding(
+                get: { condition.groupValue ?? .changes },
+                set: { condition.groupValue = $0 }
+            )) {
+                ForEach(TimelineGroupValue.allCases) { group in
+                    Text(group.title).tag(group)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .automaticScan:
+            Picker("", selection: Binding(
+                get: { condition.boolValue ?? false },
+                set: { condition.boolValue = $0 }
+            )) {
+                Text("Yes").tag(true)
+                Text("No").tag(false)
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .time:
             if condition.operation == .between {
                 HStack(spacing: 5) {

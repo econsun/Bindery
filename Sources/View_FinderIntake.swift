@@ -293,7 +293,7 @@ struct FinderIntakeSheet: View {
                                             .font(.bindery(13, .medium))
                                             .foregroundStyle(Color.primary.opacity(0.88))
                                             .lineLimit(1)
-                                        Text("\(binding.category) · \(state.store(for: binding)?.name ?? "No store")")
+                                        Text("\(leafCategoryName(binding.category)) · \(state.store(for: binding)?.name ?? "No store")")
                                             .font(.bindery(11))
                                             .foregroundStyle(Color.appSecondaryText)
                                             .lineLimit(1)

@@ -253,11 +253,6 @@ struct SnapshotInventoryView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 8) {
-                HStack(spacing: 14) {
-                    legendDot(color: Color.appGreen, text: "Available")
-                    legendDot(color: Color.appOrange, text: "Offline")
-                    legendDot(color: Color.appRed, text: "Missing")
-                }
                 HStack(spacing: 8) {
                     if selecting {
                         Button(allSelected ? "Deselect All" : "Select All") {
@@ -431,15 +426,6 @@ struct SnapshotInventoryView: View {
 
     private func targetIDs(for snapshot: SnapshotGroup) -> Set<String> {
         selection.contains(snapshot.id) ? selection : [snapshot.id]
-    }
-
-    private func legendDot(color: Color, text: String) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 5, height: 5)
-            Text(text)
-                .font(.bindery(11.5, .medium))
-                .foregroundStyle(Color.appSecondaryText)
-        }
     }
 
     private func daySection(_ group: (day: Date, items: [SnapshotGroup])) -> some View {
@@ -618,13 +604,15 @@ struct SnapshotColumnHeader: View {
         HStack(spacing: 14) {
             Color.clear.frame(width: 44, height: 1)
             Text("Name")
-                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 320, maxWidth: .infinity, alignment: .leading)
+            Text("ID")
+                .frame(width: 84, alignment: .leading)
             Text("Binding")
-                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                .frame(width: 170, alignment: .leading)
             Text("Category")
-                .frame(minWidth: 130, maxWidth: .infinity, alignment: .leading)
+                .frame(width: 140, alignment: .leading)
             Text("Store")
-                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+                .frame(width: 130, alignment: .leading)
             Text("Project")
                 .frame(width: 90, alignment: .leading)
             Text("Status")
@@ -637,7 +625,7 @@ struct SnapshotColumnHeader: View {
         .foregroundStyle(Color.appSecondaryText)
         .padding(.horizontal, 12)
         .frame(height: 26)
-        .frame(minWidth: 1080)
+        .frame(minWidth: 1300)
     }
 }
 
@@ -675,7 +663,7 @@ struct SnapshotInventoryRow: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             wideRow
-                .frame(minWidth: 1080)
+                .frame(minWidth: 1300)
             compactRow
         }
         .padding(.horizontal, 12)
@@ -720,25 +708,39 @@ struct SnapshotInventoryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 titleLine(showProject: false)
             }
-            .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 320, maxWidth: .infinity, alignment: .leading)
+
+            Text(record.id)
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.appTertiaryText)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .frame(width: 84, alignment: .leading)
+                .help("Permanent snapshot ID")
 
             Text(ownerName)
                 .font(.bindery(12.5, .medium))
                 .foregroundStyle(owner == nil ? Color.appTertiaryText : Color.appSecondaryText)
                 .lineLimit(1)
-                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                .frame(width: 170, alignment: .leading)
 
-            Text(categoryText)
-                .font(.bindery(12.5, .medium))
-                .foregroundStyle(Color.appSecondaryText)
-                .lineLimit(1)
-                .frame(minWidth: 130, maxWidth: .infinity, alignment: .leading)
+            Group {
+                if let owner {
+                    CategoryTagView(category: owner.category)
+                } else {
+                    Text("—")
+                        .font(.bindery(12))
+                        .foregroundStyle(Color.appTertiaryText)
+                }
+            }
+            .frame(width: 140, alignment: .leading)
 
             Text(storeText)
                 .font(.bindery(12, .medium))
                 .foregroundStyle(Color.appSecondaryText)
                 .lineLimit(1)
-                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+                .frame(width: 130, alignment: .leading)
 
             Text(projectText ?? "—")
                 .font(.system(size: 11.5, weight: .medium, design: .monospaced))
@@ -773,13 +775,6 @@ struct SnapshotInventoryRow: View {
                 .foregroundStyle(Color.primary.opacity(0.90))
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Text(record.id)
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundStyle(Color.appTertiaryText)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1.5)
-                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                .help("Permanent snapshot ID")
             if showProject, let projectText {
                 Text("Project \(projectText)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -805,7 +800,7 @@ struct SnapshotInventoryRow: View {
             if let owner {
                 Text(owner.name)
                 separator
-                Text(owner.category)
+                CategoryTagView(category: owner.category)
             } else {
                 Text("No binding")
             }
@@ -815,6 +810,10 @@ struct SnapshotInventoryRow: View {
                 separator
                 Text(record.sourceName)
             }
+            separator
+            Text(record.id)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.appTertiaryText)
         }
         .font(.bindery(12))
         .foregroundStyle(Color.appSecondaryText)
@@ -823,10 +822,6 @@ struct SnapshotInventoryRow: View {
 
     private var ownerName: String {
         owner?.name ?? "No binding"
-    }
-
-    private var categoryText: String {
-        owner?.category ?? "—"
     }
 
     private var storeText: String {

@@ -1327,13 +1327,7 @@ private struct BindingListRow: View {
                 .foregroundStyle(Color.primary.opacity(0.92))
                 .lineLimit(1)
                 .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-            Text(binding.category)
-                .font(.bindery(12.5, .medium))
-                .foregroundStyle(Color.appSecondaryText)
-                .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3.5)
-                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            CategoryTagView(category: binding.category)
                 .frame(minWidth: 95, maxWidth: .infinity, alignment: .leading)
             Text(state.store(for: binding)?.name ?? "—")
                 .font(.bindery(12.5, .medium))
@@ -2060,7 +2054,7 @@ private struct BindingDetailsPanel: View {
             sectionLabel("Source")
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 7) {
                 detailRow("Type", binding.kind.rawValue)
-                detailRow("Category", binding.category)
+                detailCategoryRow(binding.category)
                 detailRow("Creators", creatorsText)
                 detailRow("Source size", sourceSizeText)
                 detailRow("Modified", modifiedText)
@@ -2100,6 +2094,19 @@ private struct BindingDetailsPanel: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(value)
+        }
+    }
+
+    private func detailCategoryRow(_ category: String) -> some View {
+        GridRow {
+            Text("Category")
+                .font(.bindery(13.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .frame(width: 104, alignment: .leading)
+            HStack {
+                CategoryTagView(category: category)
+                Spacer()
+            }
         }
     }
 
@@ -2912,7 +2919,7 @@ private struct DragPreview: View {
                     .font(.bindery(12, .semibold))
                     .foregroundStyle(Color.primary.opacity(0.88))
                     .lineLimit(1)
-                Text(binding.category)
+                Text(leafCategoryName(binding.category))
                     .font(.bindery(10))
                     .foregroundStyle(Color.primary.opacity(0.45))
                     .lineLimit(1)

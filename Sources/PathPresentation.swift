@@ -113,3 +113,12 @@ func htmlIndexURL(for binding: BackupBinding) -> URL? {
     }
 }
 
+
+/// Display-only category name. Sidebar trees and the editor still use the
+/// full path; labels and tags show only the leaf so parent/child paths do not
+/// repeat throughout the UI.
+func leafCategoryName(_ path: String) -> String {
+    let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard !trimmed.isEmpty else { return "Uncategorized" }
+    return trimmed.split(separator: "/").last.map(String.init) ?? trimmed
+}

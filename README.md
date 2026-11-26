@@ -69,7 +69,8 @@ Category paths match the sidebar hierarchy. Renaming or moving a category moves 
 - `Archive after first backup` archives a binding after its first successful snapshot.
 - The scanner relocates snapshots by permanent ID and by size/hash, preserves binding/date metadata when a snapshot moves between stores, and verifies stored digests on demand.
 - The whole library is file-first: the catalog is JSON next to the snapshots, and the app never deletes source files.
-- **Timeline** is a right-hand activity panel (toggle **Timeline** in the toolbar) that records backups, binding/category/store edits, moves, renames, deletes, verifications, imports, and meaningful scans in a durable JSONL log. A condition builder with `is` / `contains` / starts-with / empty / date-time range logic, All/Any matching, quick filters, a resizable width, **Copy JSONL**, and **Reveal Log** make the history useful to both people and AI tools. See [Docs/ACTIVITY_LOG.md](Docs/ACTIVITY_LOG.md).
+- **Timeline** is a right-hand activity panel (toggle **Timeline** in the toolbar) that records backups, binding/category/store edits, moves, renames, deletes, verifications, imports, and meaningful scans in a durable JSONL log. A condition builder with `is` / `contains` / starts-with / empty / date-time range logic, All/Any matching, quick filters that are themselves filter conditions, a resizable width, **Copy JSONL**, and **Reveal Log** make the history useful to both people and AI tools. See [Docs/ACTIVITY_LOG.md](Docs/ACTIVITY_LOG.md).
+- All Backups and Unmanaged share the same wide layout: filename, separate ID, binding, colored leaf-category tag, store, project, status, and size.
 - **Use Bindery** in Finder: right-click files or folders to send them to Unmanaged or back them up into a binding. Enable the embedded Finder extension in **Settings → General → Finder**.
 
 ## Project layout

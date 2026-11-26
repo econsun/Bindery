@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.4 — 2026-11-26
+
+- Timeline colors now follow the operation category (Changes, Backups, Scans, System), not individual event kinds. Expanded cards keep their category color instead of turning blue.
+- Quick filters are now real filter conditions: Changes/Backups/Scans add a Group condition and Errors adds a Level condition. They can be inspected, edited, or removed in the filter sheet and coexist with advanced conditions.
+- Hiding automatic scans is a default, removable `Auto scan is No` condition. Delete it (or Clear all) to show automatic scans again. Automatic scans are logged as Routine events with a `trigger` detail.
+- The filter sheet shows quick-filter and automatic-scan conditions like any other condition, so all filtering logic is transparent.
+- The Filter button sits in the Timeline header and is not checked.
+- The right panel remains resizable and remembers its width.
+- Binding changes show natural-language summaries; existing raw change strings are converted in the panel.
+- All Backups and Unmanaged now share the same wide-row architecture: filename first, a separate ID column, Binding, a colored category tag, Store, Project, Status, and Size. The availability legend is removed.
+- Filenames get the extra width; the permanent ID is no longer repeated as a badge next to the filename.
+- Category labels are colored tags everywhere they are shown, and only the leaf name is used (`Development/Software` becomes `Software`). Navigation trees and the category editor still keep the full hierarchy.
+
 ## 1.2.3 — 2026-11-26
 
 - The Filter control is in the Timeline header; quick filters (All / Changes / Backups / Scans / Errors) remain available in the row below. The Filter button has no checkmark and advanced filtering is optional.

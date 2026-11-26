@@ -109,7 +109,7 @@ struct BindingPickerSheet: View {
                                             .foregroundStyle(Color.primary.opacity(0.90))
                                             .lineLimit(1)
                                         HStack(spacing: 5) {
-                                            Text(binding.category)
+                                            Text(leafCategoryName(binding.category))
                                             separator
                                             Text("\(binding.backupRecords.count) backup\(binding.backupRecords.count == 1 ? "" : "s")")
                                             if binding.isArchived {

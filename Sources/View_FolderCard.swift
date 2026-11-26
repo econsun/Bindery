@@ -699,7 +699,7 @@ struct BindingFolderCard: View {
             HStack(alignment: .center, spacing: 4) {
                 Spacer(minLength: 4)
 
-                Text(binding.category)
+                Text(leafCategoryName(binding.category))
                     .font(.bindery(11, .semibold))
                     .foregroundStyle(palette.ink.opacity(0.98))
                     .lineLimit(1)

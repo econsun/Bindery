@@ -6,9 +6,12 @@ struct TimelinePanel: View {
     var onClose: (() -> Void)? = nil
 
     @ObservedObject private var activity = ActivityLog.shared
+    @EnvironmentObject private var state: LibraryState
+    @EnvironmentObject private var appSettings: AppSettings
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("timeline.conditions") private var conditionsJSON = "[]"
     @AppStorage("timeline.match") private var matchRaw = TimelineMatchMode.all.rawValue
-    @AppStorage("timeline.quick") private var quickRaw = TimelineQuickScope.all.rawValue
+    @AppStorage("timeline.autoScanDefaultSeeded") private var autoScanDefaultSeeded = false
 
     @State private var expanded: Set<UUID> = []
     @State private var showFilters = false
@@ -26,14 +29,26 @@ struct TimelinePanel: View {
         )
     }
 
-    private var quickScope: TimelineQuickScope {
-        TimelineQuickScope(rawValue: quickRaw) ?? .all
+    private var hasUserConditions: Bool {
+        conditions.contains { $0.origin != .system }
+    }
+
+    private var activeQuick: TimelineQuickScope {
+        guard let quick = conditions.first(where: { $0.origin == .quick }) else { return .all }
+        if quick.field == .group {
+            switch quick.groupValue ?? .changes {
+            case .changes: return .changes
+            case .backups: return .backups
+            case .scans: return .scans
+            default: return .all
+            }
+        }
+        if quick.field == .level, quick.level == .error { return .errors }
+        return .all
     }
 
     private var events: [ActivityEvent] {
         activity.events.filter { event in
-            if event.kind == .scan, event.details["trigger"] != "manual" { return false }
-            guard quickScope.matches(event) else { return false }
             guard !conditions.isEmpty else { return true }
             let results = conditions.map { $0.matches(event) }
             return matchMode == .all ? results.allSatisfy { $0 } : results.contains(true)
@@ -89,11 +104,11 @@ struct TimelinePanel: View {
                     Text("Filter")
                         .font(.bindery(10.5, .medium))
                 }
-                .foregroundStyle(conditions.isEmpty ? Color.appSecondaryText : Color.accentColor)
+                .foregroundStyle(hasUserConditions ? Color.accentColor : Color.appSecondaryText)
                 .padding(.horizontal, 7)
                 .frame(height: 24)
                 .background(
-                    conditions.isEmpty ? Color.primary.opacity(0.05) : Color.accentColor.opacity(0.10),
+                    hasUserConditions ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.05),
                     in: Capsule()
                 )
             }
@@ -152,14 +167,33 @@ struct TimelinePanel: View {
         HStack(spacing: 5) {
             ForEach(TimelineQuickScope.allCases) { item in
                 Button(item.title) {
-                    quickRaw = item.rawValue
+                    applyQuick(item)
                 }
-                .buttonStyle(TimelineQuickFilterStyle(selected: quickScope == item))
+                .buttonStyle(TimelineQuickFilterStyle(selected: activeQuick == item))
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 11)
+    }
+
+    private func categoryTint(for event: ActivityEvent) -> Color {
+        if let category = event.details["category"], !category.isEmpty {
+            return appSettings.baseColor(for: state.categoryColor(category), scheme: colorScheme)
+        }
+        if let rawID = event.details["bindingID"],
+           let id = UUID(uuidString: rawID),
+           let binding = state.bindings.first(where: { $0.id == id }) {
+            return appSettings.baseColor(for: state.categoryColor(binding.category), scheme: colorScheme)
+        }
+        if let name = event.details["binding"],
+           let binding = state.bindings.first(where: { $0.name == name }) {
+            return appSettings.baseColor(for: state.categoryColor(binding.category), scheme: colorScheme)
+        }
+        if let to = event.details["to"], !to.isEmpty {
+            return appSettings.baseColor(for: state.categoryColor(to), scheme: colorScheme)
+        }
+        return Color.appGray
     }
 
     private func daySection(_ group: (day: Date, events: [ActivityEvent])) -> some View {
@@ -174,6 +208,7 @@ struct TimelinePanel: View {
             ForEach(group.events) { event in
                 TimelinePanelRow(
                     event: event,
+                    tint: categoryTint(for: event),
                     isExpanded: expanded.contains(event.id),
                     forceExpanded: conditions.contains { $0.field == .details },
                     now: now,
@@ -208,11 +243,45 @@ struct TimelinePanel: View {
         .padding(20)
     }
 
+    private func applyQuick(_ scope: TimelineQuickScope) {
+        conditions.removeAll { $0.origin == .quick }
+        guard scope != .all else { return }
+        var condition: TimelineFilterCondition
+        switch scope {
+        case .all:
+            return
+        case .changes:
+            condition = .make(for: .group)
+            condition.groupValue = .changes
+        case .backups:
+            condition = .make(for: .group)
+            condition.groupValue = .backups
+        case .scans:
+            condition = .make(for: .group)
+            condition.groupValue = .scans
+        case .errors:
+            condition = .make(for: .level)
+            condition.level = .error
+        }
+        condition.origin = .quick
+        conditions.append(condition)
+    }
+
     private func loadConditions() {
         guard let data = conditionsJSON.data(using: .utf8) else { return }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         conditions = (try? decoder.decode([TimelineFilterCondition].self, from: data)) ?? []
+        if !autoScanDefaultSeeded {
+            if !conditions.contains(where: { $0.field == .automaticScan }) {
+                var condition = TimelineFilterCondition.make(for: .automaticScan)
+                condition.operation = .isExactly
+                condition.boolValue = false
+                condition.origin = .system
+                conditions.insert(condition, at: 0)
+            }
+            autoScanDefaultSeeded = true
+        }
     }
 
     private func saveConditions() {
@@ -309,6 +378,7 @@ extension ActivityEvent {
 
 private struct TimelinePanelRow: View {
     let event: ActivityEvent
+    let tint: Color
     let isExpanded: Bool
     let forceExpanded: Bool
     let now: Date
@@ -406,7 +476,7 @@ private struct TimelinePanelRow: View {
             .padding(.vertical, 7)
             .background(
                 (isExpanded || forceExpanded)
-                    ? Color.accentColor.opacity(0.055)
+                    ? tint.opacity(event.level == .error ? 0.10 : 0.065)
                     : (event.level == .major || event.level == .error
                        ? tint.opacity(event.level == .error ? 0.075 : 0.045)
                        : Color.clear),
@@ -466,9 +536,6 @@ private struct TimelinePanelRow: View {
         }
     }
 
-    private var tint: Color {
-        event.kind.timelineType.tint
-    }
 }
 
 private struct TimelinePanelFilterStyle: ButtonStyle {

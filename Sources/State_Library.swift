@@ -351,7 +351,7 @@ final class LibraryState: ObservableObject {
             level: .minor,
             actor: .user,
             title: archived ? "Archived \(bindings[index].name)" : "Unarchived \(bindings[index].name)",
-            details: ["binding": bindings[index].name, "archived": archived ? "true" : "false"]
+            details: ["binding": bindings[index].name, "bindingID": bindings[index].id.uuidString, "category": bindings[index].category, "archived": archived ? "true" : "false"]
         )
     }
 
@@ -365,7 +365,7 @@ final class LibraryState: ObservableObject {
             level: .minor,
             title: "Added creator to \(bindings[index].name)",
             summary: creator.rawValue,
-            details: ["binding": bindings[index].name, "creator": creator.rawValue]
+            details: ["binding": bindings[index].name, "bindingID": bindings[index].id.uuidString, "category": bindings[index].category, "creator": creator.rawValue]
         )
     }
 
@@ -379,7 +379,7 @@ final class LibraryState: ObservableObject {
             level: .minor,
             title: "Changed creator for \(bindings[index].name)",
             summary: creator.rawValue,
-            details: ["binding": bindings[index].name, "creator": creator.rawValue]
+            details: ["binding": bindings[index].name, "bindingID": bindings[index].id.uuidString, "category": bindings[index].category, "creator": creator.rawValue]
         )
     }
 
@@ -544,7 +544,7 @@ final class LibraryState: ObservableObject {
             .bindingFavorite,
             level: .minor,
             title: bindings[index].isFavorite ? "Favorited \(bindings[index].name)" : "Unfavorited \(bindings[index].name)",
-            details: ["binding": bindings[index].name]
+            details: ["binding": bindings[index].name, "bindingID": bindings[index].id.uuidString, "category": bindings[index].category]
         )
     }
 
@@ -704,15 +704,15 @@ final class LibraryState: ObservableObject {
                 || previousReport?.relocated != report.relocated
                 || previousReport?.unmanaged != report.unmanaged
                 || previousReport?.errors != report.errors
-            if trigger == .manual && (changed || !report.errors.isEmpty) {
+            if changed || !report.errors.isEmpty {
                 ActivityLog.shared.log(
                     .scan,
-                    level: report.errors.isEmpty ? .normal : .error,
+                    level: report.errors.isEmpty ? (trigger == .manual ? .normal : .minor) : .error,
                     actor: .scan,
-                    title: "Completed a manual store scan",
+                    title: trigger == .manual ? "Completed a manual store scan" : "Completed an automatic store scan",
                     summary: report.summary,
                     details: [
-                        "trigger": "manual",
+                        "trigger": trigger == .manual ? "manual" : "automatic",
                         "onlineStores": String(report.onlineStores),
                         "offlineStores": String(report.offlineStores),
                         "found": String(report.found),
@@ -1788,7 +1788,7 @@ final class LibraryState: ObservableObject {
             changes.append(old.name.isEmpty ? "Named the binding \(new.name)" : "Renamed from \(old.name) to \(new.name)")
         }
         if old.category != new.category {
-            changes.append("Moved from \(old.category) to \(new.category)")
+            changes.append("Moved from \(leafCategoryName(old.category)) to \(leafCategoryName(new.category))")
         }
         if old.kind != new.kind {
             changes.append("Changed type from \(old.kind.rawValue) to \(new.kind.rawValue)")
