@@ -901,7 +901,7 @@ private struct LibraryToolbar: View {
                 }
             }
             .padding(.horizontal, 13)
-            .frame(width: 292, height: 38)
+            .frame(width: 270, height: 38)
             .background(Color.primary.opacity(0.052), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -931,6 +931,16 @@ private struct LibraryToolbar: View {
             .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Menu {
+                Button {
+                    sort = nil
+                } label: {
+                    if sort == nil {
+                        Label("Unsorted", systemImage: "checkmark")
+                    } else {
+                        Text("Unsorted")
+                    }
+                }
+                Divider()
                 ForEach(LibrarySort.allCases) { option in
                     Button {
                         sort = option
@@ -944,14 +954,19 @@ private struct LibraryToolbar: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 14.5, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
+                    Text(sort?.rawValue ?? "Unsorted")
+                        .font(.bindery(10.5, .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 8.5, weight: .bold))
+                        .font(.system(size: 8, weight: .bold))
                 }
-                .foregroundStyle(Color.primary.opacity(0.62))
-                .frame(width: 50, height: 38)
+                .foregroundStyle(Color.primary.opacity(0.66))
+                .padding(.horizontal, 8)
+                .frame(width: 112, height: 38)
                 .background(Color.primary.opacity(0.052), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .menuStyle(.borderlessButton)
@@ -979,7 +994,7 @@ private struct LibraryToolbar: View {
                         }
                     }
                     .controlSize(.mini)
-                    .frame(width: 78)
+                    .frame(width: 68)
                     .tint(Color.primary.opacity(0.42))
                     Button {
                         cardWidth = min(300, cardWidth + 12)

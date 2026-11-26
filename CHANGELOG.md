@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2 — 2026-11-26
+
+- Timeline filtering is now a condition builder instead of fixed chips: field, operator, and value rows with `is`, `is not`, `contains`, `does not contain`, `before`, `after`, and `between`.
+- Conditions can be combined with **All** or **Any** matching and include date/time ranges with hour-and-minute controls.
+- Filter conditions and match mode persist across launches. The Filter button shows a checkmark when conditions are active; there is no inline filter preview.
+- The sort control now displays the current mode (`Last Backup`, `Name`, `Unsorted`, etc.) as well as checked menu entries.
+- Search text is left-aligned beside its icon; Escape and click-away defocus the field without moving the placeholder.
+
 ## 1.2.1 — 2026-11-26
 
 - Timeline is now a right-hand activity panel with a labeled **Timeline** toolbar entry and a close button, instead of a sidebar destination.

@@ -6,39 +6,30 @@ struct TimelinePanel: View {
     var onClose: (() -> Void)? = nil
 
     @ObservedObject private var activity = ActivityLog.shared
-    @AppStorage("timeline.filter") private var filterRaw = TimelineFilter.all.rawValue
-    @AppStorage("timeline.types") private var typeFilterRaw = TimelineType.allCases.map(\.rawValue).joined(separator: ",")
-    @AppStorage("timeline.levels") private var levelFilterRaw = ActivityLevel.allCases.map(\.rawValue).joined(separator: ",")
+    @AppStorage("timeline.conditions") private var conditionsJSON = "[]"
+    @AppStorage("timeline.match") private var matchRaw = TimelineMatchMode.all.rawValue
 
     @State private var expanded: Set<UUID> = []
+    @State private var showFilters = false
+    @State private var conditions: [TimelineFilterCondition] = []
     @State private var now = Date()
 
-    private var filter: TimelineFilter {
-        TimelineFilter(rawValue: filterRaw) ?? .all
+    private var matchMode: TimelineMatchMode {
+        TimelineMatchMode(rawValue: matchRaw) ?? .all
     }
 
-    private var selectedTypes: Set<TimelineType> {
-        Set(typeFilterRaw.split(separator: ",").compactMap { TimelineType(rawValue: String($0)) })
-    }
-
-    private var selectedLevels: Set<ActivityLevel> {
-        Set(levelFilterRaw.split(separator: ",").compactMap { ActivityLevel(rawValue: String($0)) })
-    }
-
-    private var hasNarrowedTypes: Bool {
-        selectedTypes != Set(TimelineType.allCases)
-    }
-
-    private var hasNarrowedLevels: Bool {
-        selectedLevels != Set(ActivityLevel.allCases)
+    private var matchBinding: Binding<TimelineMatchMode> {
+        Binding(
+            get: { TimelineMatchMode(rawValue: matchRaw) ?? .all },
+            set: { matchRaw = $0.rawValue }
+        )
     }
 
     private var events: [ActivityEvent] {
         activity.events.filter { event in
-            guard filter.matches(event) else { return false }
-            guard selectedTypes.contains(event.kind.timelineType) else { return false }
-            guard selectedLevels.contains(event.level) else { return false }
-            return true
+            guard !conditions.isEmpty else { return true }
+            let results = conditions.map { $0.matches(event) }
+            return matchMode == .all ? results.allSatisfy { $0 } : results.contains(true)
         }
     }
 
@@ -70,6 +61,8 @@ struct TimelinePanel: View {
             }
         }
         .background(Color.appSidebar.opacity(0.62))
+        .onAppear(perform: loadConditions)
+        .onChange(of: conditions) { _, _ in saveConditions() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 
@@ -121,55 +114,39 @@ struct TimelinePanel: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 5) {
-            ForEach(TimelineFilter.allCases) { item in
-                Button(item.title) {
-                    filterRaw = item.rawValue
-                }
-                .buttonStyle(TimelinePanelFilterStyle(selected: filter == item))
-            }
-            Spacer(minLength: 2)
-            Menu {
-                Section("Event types") {
-                    ForEach(TimelineType.allCases) { type in
-                        Button {
-                            toggleType(type)
-                        } label: {
-                            if selectedTypes.contains(type) {
-                                Label(type.title, systemImage: "checkmark")
-                            } else {
-                                Text(type.title)
-                            }
-                        }
-                    }
-                }
-                Section("Levels") {
-                    ForEach(ActivityLevel.allCases, id: \.rawValue) { level in
-                        Button {
-                            toggleLevel(level)
-                        } label: {
-                            if selectedLevels.contains(level) {
-                                Label(levelTitle(level), systemImage: "checkmark")
-                            } else {
-                                Text(levelTitle(level))
-                            }
-                        }
-                    }
-                }
-                Divider()
-                Button("Show all types and levels") {
-                    resetAdvancedFilters()
-                }
+        HStack(spacing: 8) {
+            Button {
+                showFilters.toggle()
             } label: {
-                Image(systemName: hasNarrowedTypes || hasNarrowedLevels ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(hasNarrowedTypes || hasNarrowedLevels ? Color.accentColor : Color.primary.opacity(0.42))
-                    .frame(width: 24, height: 24)
+                HStack(spacing: 5) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 12, weight: .medium))
+                    if !conditions.isEmpty {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    Text("Filter")
+                        .font(.bindery(11.5, .medium))
+                }
+                .foregroundStyle(conditions.isEmpty ? Color.appSecondaryText : Color.accentColor)
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .background(
+                    conditions.isEmpty ? Color.primary.opacity(0.05) : Color.accentColor.opacity(0.10),
+                    in: Capsule()
+                )
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Filter event types and levels")
+            .buttonStyle(.plain)
+            .popover(isPresented: $showFilters, arrowEdge: .bottom) {
+                TimelineFilterBuilder(
+                    conditions: $conditions,
+                    matchMode: matchBinding,
+                    done: { showFilters = false }
+                )
+            }
+            .help("Build filter conditions")
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 11)
@@ -211,7 +188,7 @@ struct TimelinePanel: View {
                 .foregroundStyle(Color.primary.opacity(0.74))
             Text(activity.events.isEmpty
                  ? "Backups and edits will appear here."
-                 : "Try another filter or show routine events.")
+                 : "Try another filter.")
                 .font(.bindery(11.5))
                 .foregroundStyle(Color.appSecondaryText)
                 .multilineTextAlignment(.center)
@@ -220,30 +197,19 @@ struct TimelinePanel: View {
         .padding(20)
     }
 
-    private func toggleType(_ type: TimelineType) {
-        var set = selectedTypes
-        if set.contains(type) { set.remove(type) } else { set.insert(type) }
-        typeFilterRaw = set.map(\.rawValue).sorted().joined(separator: ",")
+    private func loadConditions() {
+        guard let data = conditionsJSON.data(using: .utf8) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        conditions = (try? decoder.decode([TimelineFilterCondition].self, from: data)) ?? []
     }
 
-    private func toggleLevel(_ level: ActivityLevel) {
-        var set = selectedLevels
-        if set.contains(level) { set.remove(level) } else { set.insert(level) }
-        levelFilterRaw = set.map(\.rawValue).sorted().joined(separator: ",")
-    }
-
-    private func resetAdvancedFilters() {
-        typeFilterRaw = TimelineType.allCases.map(\.rawValue).joined(separator: ",")
-        levelFilterRaw = ActivityLevel.allCases.map(\.rawValue).joined(separator: ",")
-    }
-
-    private func levelTitle(_ level: ActivityLevel) -> String {
-        switch level {
-        case .minor: return "Routine"
-        case .normal: return "Normal"
-        case .major: return "Major"
-        case .error: return "Errors"
-        }
+    private func saveConditions() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(conditions),
+              let string = String(data: data, encoding: .utf8) else { return }
+        conditionsJSON = string
     }
 
     private func copyJSONL() {
@@ -259,85 +225,6 @@ struct TimelinePanel: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "MMM d"
         return formatter.string(from: date)
-    }
-}
-
-private enum TimelineType: String, CaseIterable, Identifiable {
-    case backup
-    case binding
-    case snapshot
-    case category
-    case store
-    case scan
-    case system
-    case unmanaged
-
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .backup: return "Backups"
-        case .binding: return "Bindings"
-        case .snapshot: return "Snapshots"
-        case .category: return "Categories"
-        case .store: return "Stores"
-        case .scan: return "Scans"
-        case .system: return "System"
-        case .unmanaged: return "Unmanaged"
-        }
-    }
-}
-
-private extension ActivityKind {
-    var timelineType: TimelineType {
-        switch self {
-        case .backupStarted, .backupCompleted, .backupFailed:
-            return .backup
-        case .scan:
-            return .scan
-        case .storeAdded, .storeRemoved:
-            return .store
-        case .appLaunch:
-            return .system
-        case .bindingCreated, .bindingUpdated, .bindingDeleted, .bindingArchived,
-             .bindingFavorite, .bindingCategory:
-            return .binding
-        case .categoryCreated, .categoryRenamed, .categoryMoved, .categoryRemoved:
-            return .category
-        case .unmanagedImported, .unmanagedIgnored:
-            return .unmanaged
-        case .snapshotAssigned, .snapshotMovedStore, .snapshotRenamed,
-             .snapshotDeleted, .snapshotVerified:
-            return .snapshot
-        }
-    }
-}
-
-private enum TimelineFilter: String, CaseIterable, Identifiable {
-    case all
-    case changes
-    case backups
-    case scans
-    case errors
-
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .all: return "All"
-        case .changes: return "Changes"
-        case .backups: return "Backups"
-        case .scans: return "Scans"
-        case .errors: return "Errors"
-        }
-    }
-
-    func matches(_ event: ActivityEvent) -> Bool {
-        switch self {
-        case .all: return true
-        case .changes: return event.kind.group == .change || event.kind.group == .store
-        case .backups: return event.kind.group == .backup
-        case .scans: return event.kind.group == .scan
-        case .errors: return event.level == .error
-        }
     }
 }
 

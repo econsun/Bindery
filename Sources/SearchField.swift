@@ -13,31 +13,27 @@ struct SearchField: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeNSView(context: Context) -> NSSearchField {
-        let field = NSSearchField()
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
         field.delegate = context.coordinator
-        field.target = context.coordinator
-        field.action = #selector(Coordinator.textChanged(_:))
-        field.isBordered = false
+        field.isEditable = true
+        field.isSelectable = true
+        field.isBezeled = false
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = .systemFont(ofSize: 15)
         field.textColor = .labelColor
+        field.alignment = .left
         field.lineBreakMode = .byTruncatingTail
         field.maximumNumberOfLines = 1
-        field.sendsSearchStringImmediately = true
-        field.sendsWholeSearchString = false
         field.placeholderAttributedString = placeholderString
-        if let cell = field.cell as? NSSearchFieldCell {
-            cell.usesSingleLineMode = true
-            cell.searchButtonCell?.isTransparent = true
-            cell.cancelButtonCell?.isTransparent = true
-        }
+        field.cell?.usesSingleLineMode = true
+        field.cell?.alignment = .left
         context.coordinator.field = field
         return field
     }
 
-    func updateNSView(_ field: NSSearchField, context: Context) {
+    func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
         field.placeholderAttributedString = placeholderString
         if field.stringValue != text {
@@ -55,14 +51,19 @@ struct SearchField: NSViewRepresentable {
             string: placeholder,
             attributes: [
                 .font: NSFont.systemFont(ofSize: 15),
-                .foregroundColor: NSColor.secondaryLabelColor
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: {
+                    let style = NSMutableParagraphStyle()
+                    style.alignment = .left
+                    return style
+                }()
             ]
         )
     }
 
-    final class Coordinator: NSObject, NSSearchFieldDelegate {
+    final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: SearchField
-        weak var field: NSSearchField?
+        weak var field: NSTextField?
         private var clickMonitor: Any?
         private var keyMonitor: Any?
 
@@ -74,12 +75,8 @@ struct SearchField: NSViewRepresentable {
             removeMonitors()
         }
 
-        @objc func textChanged(_ sender: NSSearchField) {
-            parent.text = sender.stringValue
-        }
-
         func controlTextDidChange(_ notification: Notification) {
-            guard let field = notification.object as? NSSearchField else { return }
+            guard let field = notification.object as? NSTextField else { return }
             parent.text = field.stringValue
         }
 
