@@ -11,6 +11,7 @@ struct BinderyApp: App {
                 .environmentObject(state)
                 .environmentObject(appSettings)
                 .frame(minWidth: 1120, minHeight: 780)
+                .onOpenURL { state.handleFinderURL($0) }
         }
         .defaultSize(width: 1180, height: 820)
         .windowStyle(.hiddenTitleBar)

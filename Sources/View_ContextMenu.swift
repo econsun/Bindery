@@ -44,7 +44,7 @@ struct BindingContextMenuSurface: NSViewRepresentable {
 
             menu.addItem(item("Open Details", symbol: "info.circle", tag: 1, action: owner.open))
             menu.addItem(item("Backup Now", symbol: "arrow.triangle.2.circlepath", tag: 2, action: owner.run))
-            menu.addItem(item("Edit Project…", symbol: "slider.horizontal.3", tag: 4, action: owner.editNote))
+            menu.addItem(item("Edit Binding…", symbol: "slider.horizontal.3", tag: 4, action: owner.editNote))
             menu.addItem(.separator())
             menu.addItem(item(
                 owner.binding.isFavorite ? "Remove from Favorites" : "Add to Favorites",
@@ -64,8 +64,27 @@ struct BindingContextMenuSurface: NSViewRepresentable {
             menu.addItem(categoryItem)
             menu.addItem(.separator())
             menu.addItem(item("Show Source in Finder", symbol: "magnifyingglass", tag: 5, action: owner.reveal))
+            let storeItem = item("Show Store in Finder", symbol: "externaldrive", tag: 7) { [weak self] in
+                guard let self, !self.owner.binding.destinationPath.isEmpty else { return }
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: self.owner.binding.destinationPath)])
+            }
+            storeItem.isEnabled = !owner.binding.destinationPath.isEmpty
+            menu.addItem(storeItem)
             menu.addItem(.separator())
-            menu.addItem(item("Delete Project…", symbol: "trash", tag: 6, action: owner.delete))
+            menu.addItem(item("Copy Binding ID", symbol: "number", tag: 8) { [weak self] in
+                guard let self else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(self.owner.binding.id.uuidString, forType: .string)
+            })
+            let pathItem = item("Copy Source Path", symbol: "doc.on.doc", tag: 9) { [weak self] in
+                guard let self, !self.owner.binding.sourcePath.isEmpty else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(self.owner.binding.sourcePath, forType: .string)
+            }
+            pathItem.isEnabled = !owner.binding.sourcePath.isEmpty
+            menu.addItem(pathItem)
+            menu.addItem(.separator())
+            menu.addItem(item("Delete Binding…", symbol: "trash", tag: 6, action: owner.delete))
             return menu
         }
 

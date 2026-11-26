@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 struct TimelineView: View {
@@ -7,6 +8,9 @@ struct TimelineView: View {
 
     @State private var filter: TimelineFilter = .all
     @State private var expanded: Set<UUID> = []
+    @State private var selectedID: UUID?
+    @State private var contentWidth: CGFloat = 0
+    @State private var now = Date()
 
     private var query: String {
         search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,18 +31,29 @@ struct TimelineView: View {
             .sorted { $0.day > $1.day }
     }
 
+    private var selectedEvent: ActivityEvent? {
+        if let selectedID, let event = activity.events.first(where: { $0.id == selectedID }) {
+            return event
+        }
+        return visibleEvents.first
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                filterBar
-                if days.isEmpty {
-                    emptyState
-                } else {
-                    ForEach(days, id: \.day) { group in
-                        daySection(group)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 26) {
+                    timelineColumn
+                    inspector
+                        .frame(width: 360)
                 }
+                .frame(minWidth: 1240)
+
+                timelineColumn
+            }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                if abs(width - contentWidth) > 1 { contentWidth = width }
             }
             .padding(.horizontal, 30)
             .padding(.top, 8)
@@ -46,6 +61,24 @@ struct TimelineView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+    }
+
+    private var isWide: Bool { contentWidth >= 1240 }
+
+    private var timelineColumn: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            filterBar
+            if days.isEmpty {
+                emptyState
+            } else {
+                ForEach(days, id: \.day) { group in
+                    daySection(group)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -126,7 +159,11 @@ struct TimelineView: View {
                 ForEach(group.events) { event in
                     TimelineEventRow(
                         event: event,
+                        isSelected: selectedEvent?.id == event.id,
                         isExpanded: expanded.contains(event.id),
+                        canExpand: !isWide,
+                        now: now,
+                        select: { selectedID = event.id },
                         toggle: {
                             if expanded.contains(event.id) {
                                 expanded.remove(event.id)
@@ -156,6 +193,127 @@ struct TimelineView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 320)
+    }
+
+    @ViewBuilder
+    private var inspector: some View {
+        if let event = selectedEvent {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Text("EVENT")
+                        .font(.bindery(10.5, .semibold))
+                        .foregroundStyle(Color.appTertiaryText)
+                        .tracking(0.7)
+                    Spacer()
+                    Text(activityDateLabel(event.timestamp))
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(Color.appTertiaryText)
+                }
+
+                HStack(spacing: 7) {
+                    Image(systemName: event.kind.icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(event.level == .error ? Color.appRed : Color.accentColor)
+                    Text(event.kind.rawValue)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.appSecondaryText)
+                    Spacer()
+                }
+
+                Text(event.title)
+                    .font(.bindery(17, .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.94))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !event.summary.isEmpty {
+                    Text(event.summary)
+                        .font(.bindery(12.5))
+                        .foregroundStyle(Color.appSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 6) {
+                    inspectorChip(event.level.rawValue, tint: event.level == .error ? .appRed : .appSecondaryText)
+                    inspectorChip(event.actor.rawValue, tint: .appTertiaryText)
+                }
+
+                Divider().opacity(0.55)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(event.details.keys.sorted(), id: \.self) { key in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(key)
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Color.appTertiaryText)
+                            Text(event.details[key] ?? "")
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(Color.appSecondaryText)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 5)
+                        if key != event.details.keys.sorted().last {
+                            Divider().opacity(0.35)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 8) {
+                    Button {
+                        copyText(activity.jsonLines(for: [event]))
+                    } label: {
+                        Label("Copy Event", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(TimelineHeaderButtonStyle())
+
+                    Button {
+                        copyText(event.details.keys.sorted().map { "\($0): \(event.details[$0] ?? "")" }.joined(separator: "\n"))
+                    } label: {
+                        Label("Copy Details", systemImage: "list.bullet")
+                    }
+                    .buttonStyle(TimelineHeaderButtonStyle())
+                }
+            }
+            .padding(16)
+            .background(Color.appPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            }
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "sidebar.right")
+                    .font(.system(size: 22, weight: .light))
+                    .foregroundStyle(Color.primary.opacity(0.22))
+                Text("Select an event")
+                    .font(.bindery(13, .medium))
+                    .foregroundStyle(Color.appSecondaryText)
+            }
+            .frame(maxWidth: .infinity, minHeight: 180)
+        }
+    }
+
+    private func inspectorChip(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(Color.primary.opacity(0.05), in: Capsule())
+    }
+
+    private func activityDateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d, HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    private func copyText(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func copyJSONL() {
@@ -207,7 +365,11 @@ private enum TimelineFilter: String, CaseIterable, Identifiable {
 
 private struct TimelineEventRow: View {
     let event: ActivityEvent
+    let isSelected: Bool
     let isExpanded: Bool
+    let canExpand: Bool
+    let now: Date
+    let select: () -> Void
     let toggle: () -> Void
 
     private static let timeFormatter: DateFormatter = {
@@ -219,11 +381,18 @@ private struct TimelineEventRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(Self.timeFormatter.string(from: event.timestamp))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Color.appTertiaryText)
-                .frame(width: 58, alignment: .trailing)
-                .padding(.top, 3)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Self.timeFormatter.string(from: event.timestamp))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.appTertiaryText)
+                if let relativeTime {
+                    Text(relativeTime)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(Color.appTertiaryText)
+                }
+            }
+            .frame(width: 64, alignment: .trailing)
+            .padding(.top, 3)
 
             timelineRail
 
@@ -246,7 +415,7 @@ private struct TimelineEventRow: View {
                             .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
                     }
                     Spacer(minLength: 4)
-                    if !event.details.isEmpty {
+                    if canExpand && !event.details.isEmpty {
                         Button(action: toggle) {
                             Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 8.5, weight: .bold))
@@ -265,7 +434,7 @@ private struct TimelineEventRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if isExpanded {
+                if isExpanded && canExpand {
                     details
                         .padding(.top, 3)
                 }
@@ -273,36 +442,54 @@ private struct TimelineEventRow: View {
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
             .background(
-                event.level == .major || event.level == .error
-                    ? tint.opacity(event.level == .error ? 0.075 : 0.045)
-                    : Color.clear,
+                isSelected
+                    ? Color.accentColor.opacity(0.055)
+                    : (event.level == .major || event.level == .error
+                       ? tint.opacity(event.level == .error ? 0.075 : 0.045)
+                       : Color.clear),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
+            .overlay(alignment: .topLeading) {
+                dot
+                    .offset(x: -17, y: event.level == .minor ? 13 : 12)
+            }
             .padding(.bottom, 2)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !event.details.isEmpty { toggle() }
+            select()
+            if canExpand && !event.details.isEmpty { toggle() }
         }
     }
 
     private var timelineRail: some View {
-        ZStack(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.08))
-                .frame(width: 1)
-                .frame(maxHeight: .infinity)
-            Circle()
-                .fill(tint.opacity(event.level == .minor ? 0.45 : 0.95))
-                .frame(width: dotSize, height: dotSize)
-                .overlay {
-                    Circle()
-                        .strokeBorder(Color.appBackground, lineWidth: event.level == .major || event.level == .error ? 2 : 0)
-                }
-                .padding(.top, 5)
-        }
-        .frame(width: 14)
+        Color.clear
+            .frame(width: 14)
+            .frame(maxHeight: .infinity)
+            .overlay {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.09))
+                    .frame(width: 1)
+            }
+    }
+
+    private var dot: some View {
+        Circle()
+            .fill(tint.opacity(event.level == .minor ? 0.50 : 0.95))
+            .frame(width: dotSize, height: dotSize)
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.appBackground, lineWidth: event.level == .major || event.level == .error ? 2 : 0)
+            }
+    }
+
+    private var relativeTime: String? {
+        let interval = now.timeIntervalSince(event.timestamp)
+        guard interval >= 0, interval < 86_400 else { return nil }
+        if interval < 60 { return "just now" }
+        if interval < 3_600 { return "\(Int(interval / 60)) min ago" }
+        return "\(Int(interval / 3_600)) hr ago"
     }
 
     private var details: some View {

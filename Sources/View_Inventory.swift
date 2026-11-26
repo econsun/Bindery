@@ -67,6 +67,10 @@ struct SnapshotInventoryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+                    ViewThatFits(in: .horizontal) {
+                        SnapshotColumnHeader()
+                        EmptyView()
+                    }
                     VStack(alignment: .leading, spacing: 18) {
                         if filtered.isEmpty {
                             emptyState
@@ -501,6 +505,19 @@ struct SnapshotInventoryView: View {
                     }
                     .disabled(snapshot.availability != .available)
 
+                    Button {
+                        copySnapshotValue(snapshot.record.id)
+                    } label: {
+                        Label("Copy Snapshot ID", systemImage: "number")
+                    }
+
+                    Button {
+                        copySnapshotValue(snapshot.primary.absolutePath)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                    .disabled(snapshot.availability != .available)
+
                     Divider()
 
                     Menu {
@@ -523,14 +540,14 @@ struct SnapshotInventoryView: View {
                     Button {
                         moveToRequest = MoveToRequest(targets: contextIDs(for: snapshot))
                     } label: {
-                        Label("Move to Binding…", systemImage: "link")
+                        Label("Move to Binding", systemImage: "link")
                     }
                     .disabled(state.bindings.isEmpty)
 
                     Button {
                         requestRename(contextIDs(for: snapshot))
                     } label: {
-                        Label("Rename…", systemImage: "textformat")
+                        Label("Rename", systemImage: "textformat")
                     }
 
                     Button {
@@ -544,8 +561,13 @@ struct SnapshotInventoryView: View {
                     Button(role: .destructive) {
                         requestDelete(contextIDs(for: snapshot))
                     } label: {
-                        Label("Delete…", systemImage: "trash")
+                        Label("Delete", systemImage: "trash")
                     }
+    }
+
+    private func copySnapshotValue(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
     }
 
     private func dragIDs(for snapshot: SnapshotGroup) -> Set<String> {
@@ -591,6 +613,34 @@ struct SnapshotInventoryView: View {
     }
 }
 
+struct SnapshotColumnHeader: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Color.clear.frame(width: 44, height: 1)
+            Text("Name")
+                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+            Text("Binding")
+                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+            Text("Category")
+                .frame(minWidth: 130, maxWidth: .infinity, alignment: .leading)
+            Text("Store")
+                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+            Text("Project")
+                .frame(width: 90, alignment: .leading)
+            Text("Status")
+                .frame(width: 90, alignment: .leading)
+            Text("Size")
+                .frame(width: 80, alignment: .trailing)
+            Color.clear.frame(width: 24, height: 1)
+        }
+        .font(.bindery(11.5, .semibold))
+        .foregroundStyle(Color.appSecondaryText)
+        .padding(.horizontal, 12)
+        .frame(height: 26)
+        .frame(minWidth: 1080)
+    }
+}
+
 struct SnapshotInventoryRow: View {
     let group: SnapshotGroup
     let selecting: Bool
@@ -623,96 +673,10 @@ struct SnapshotInventoryRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            if selecting {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.36))
-                    .frame(width: 20, height: 20)
-            }
-
-            icon
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
-                    Text(record.renderedName.isEmpty ? record.fileName : record.renderedName)
-                        .font(.bindery(13.5, .semibold))
-                        .foregroundStyle(Color.primary.opacity(0.90))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(record.id)
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.appTertiaryText)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        .help("Permanent snapshot ID")
-                    if let projectText {
-                        Text("Project \(projectText)")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.appOrange.opacity(0.95))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.appOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                            .help("Project/content date from the filename, not the backup date")
-                    }
-                    if group.copyCount > 1 {
-                        Text("\(group.copyCount) copies")
-                            .font(.bindery(10, .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.accentColor.opacity(0.10), in: Capsule())
-                    }
-                }
-                HStack(spacing: 6) {
-                    if let owner {
-                        Text(owner.name)
-                        separator
-                        Text(owner.category)
-                    } else {
-                        Text("No binding")
-                    }
-                    separator
-                    Text(group.storeNames.joined(separator: " + "))
-                    if !record.sourceName.isEmpty, record.sourceName != (owner?.name ?? record.bindingName) {
-                        separator
-                        Text(record.sourceName)
-                    }
-                }
-                .font(.bindery(12))
-                .foregroundStyle(Color.appSecondaryText)
-                .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            HStack(spacing: 5) {
-                Circle().fill(statusColor).frame(width: 5, height: 5)
-                Text(statusText)
-                    .font(.bindery(11.5, .medium))
-                    .foregroundStyle(statusColor.opacity(0.95))
-            }
-            .frame(width: 72, alignment: .leading)
-
-            Text(sizeText)
-                .font(.bindery(12, .medium))
-                .monospacedDigit()
-                .foregroundStyle(Color.appSecondaryText)
-                .frame(width: 70, alignment: .trailing)
-
-            Button {
-                state.reveal(group.primary.absolutePath)
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(group.availability == .available ? 0.64 : 0.26))
-                    .frame(width: 24, height: 24)
-                    .background(Color.primary.opacity(0.045), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(group.availability != .available)
-            .help(group.availability == .available ? group.primary.absolutePath : group.primary.statusText)
+        ViewThatFits(in: .horizontal) {
+            wideRow
+                .frame(minWidth: 1080)
+            compactRow
         }
         .padding(.horizontal, 12)
         .frame(height: 56)
@@ -724,6 +688,180 @@ struct SnapshotInventoryRow: View {
         .onHover { hovering = $0 }
         .onTapGesture(perform: tap)
         .help(group.primary.absolutePath)
+    }
+
+    private var compactRow: some View {
+        HStack(spacing: 12) {
+            selectionControl
+            icon
+
+            VStack(alignment: .leading, spacing: 3) {
+                titleLine(showProject: true)
+                metadataLine
+            }
+
+            Spacer(minLength: 8)
+
+            statusView
+                .frame(width: 72, alignment: .leading)
+
+            sizeView
+                .frame(width: 70, alignment: .trailing)
+
+            revealButton
+        }
+    }
+
+    private var wideRow: some View {
+        HStack(spacing: 14) {
+            selectionControl
+            icon
+
+            VStack(alignment: .leading, spacing: 3) {
+                titleLine(showProject: false)
+            }
+            .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+
+            Text(ownerName)
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(owner == nil ? Color.appTertiaryText : Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+
+            Text(categoryText)
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 130, maxWidth: .infinity, alignment: .leading)
+
+            Text(storeText)
+                .font(.bindery(12, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+
+            Text(projectText ?? "—")
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(projectText == nil ? Color.appTertiaryText : Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(width: 90, alignment: .leading)
+
+            statusView
+                .frame(width: 90, alignment: .leading)
+
+            sizeView
+                .frame(width: 80, alignment: .trailing)
+
+            revealButton
+        }
+    }
+
+    @ViewBuilder
+    private var selectionControl: some View {
+        if selecting {
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.36))
+                .frame(width: 20, height: 20)
+        }
+    }
+
+    private func titleLine(showProject: Bool) -> some View {
+        HStack(spacing: 7) {
+            Text(record.renderedName.isEmpty ? record.fileName : record.renderedName)
+                .font(.bindery(13.5, .semibold))
+                .foregroundStyle(Color.primary.opacity(0.90))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(record.id)
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.appTertiaryText)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .help("Permanent snapshot ID")
+            if showProject, let projectText {
+                Text("Project \(projectText)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.appOrange.opacity(0.95))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.appOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .help("Project/content date from the filename, not the backup date")
+            }
+            if group.copyCount > 1 {
+                Text("\(group.copyCount) copies")
+                    .font(.bindery(10, .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.accentColor.opacity(0.10), in: Capsule())
+            }
+        }
+    }
+
+    private var metadataLine: some View {
+        HStack(spacing: 6) {
+            if let owner {
+                Text(owner.name)
+                separator
+                Text(owner.category)
+            } else {
+                Text("No binding")
+            }
+            separator
+            Text(storeText)
+            if !record.sourceName.isEmpty, record.sourceName != (owner?.name ?? record.bindingName) {
+                separator
+                Text(record.sourceName)
+            }
+        }
+        .font(.bindery(12))
+        .foregroundStyle(Color.appSecondaryText)
+        .lineLimit(1)
+    }
+
+    private var ownerName: String {
+        owner?.name ?? "No binding"
+    }
+
+    private var categoryText: String {
+        owner?.category ?? "—"
+    }
+
+    private var storeText: String {
+        group.storeNames.joined(separator: " + ")
+    }
+
+    private var statusView: some View {
+        HStack(spacing: 5) {
+            Circle().fill(statusColor).frame(width: 5, height: 5)
+            Text(statusText)
+                .font(.bindery(11.5, .medium))
+                .foregroundStyle(statusColor.opacity(0.95))
+        }
+    }
+
+    private var sizeView: some View {
+        Text(sizeText)
+            .font(.bindery(12, .medium))
+            .monospacedDigit()
+            .foregroundStyle(Color.appSecondaryText)
+    }
+
+    private var revealButton: some View {
+        Button {
+            state.reveal(group.primary.absolutePath)
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.primary.opacity(group.availability == .available ? 0.64 : 0.26))
+                .frame(width: 24, height: 24)
+                .background(Color.primary.opacity(0.045), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(group.availability != .available)
+        .help(group.availability == .available ? group.primary.absolutePath : group.primary.statusText)
     }
 
     private var icon: some View {

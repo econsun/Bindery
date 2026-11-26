@@ -43,6 +43,7 @@ final class LibraryState: ObservableObject {
     @Published private(set) var runningIDs: Set<UUID> = []
     @Published var errorMessage: String?
     @Published var statusMessage = ""
+    @Published var finderIntake: FinderIntake?
     @Published private(set) var customCategories: [String] = []
     @Published private(set) var categoryColors: [String: CardTone] = [:]
     private var statusGeneration = 0
@@ -996,6 +997,192 @@ final class LibraryState: ObservableObject {
     }
 
     func refreshAvailability() { scan() }
+
+    // MARK: - Finder intake
+
+    func handleFinderURL(_ url: URL) {
+        guard url.scheme == "bindery", url.host == "intake" else { return }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let mode = components?.queryItems?.first(where: { $0.name == "mode" })?.value
+        let urls = (NSPasteboard.general.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL]) ?? []
+        guard !urls.isEmpty else {
+            errorMessage = "No files were received from Finder."
+            return
+        }
+        finderIntake = FinderIntake(
+            urls: urls,
+            mode: mode == FinderIntakeMode.binding.rawValue ? .binding : .unmanaged
+        )
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func copyFinderItemsToUnmanaged(_ urls: [URL], storeID: UUID) {
+        guard let store = stores.first(where: { $0.id == storeID }) else {
+            errorMessage = "Choose a store first."
+            return
+        }
+        guard store.isOnline else {
+            errorMessage = "\(store.name) is offline. Connect it and try again."
+            return
+        }
+        let storePath = store.path
+        let storeName = store.name
+        finderIntake = nil
+        Task {
+            let result = await Task.detached(priority: .userInitiated) { () -> (copied: [String], errors: [String]) in
+                let manager = FileManager.default
+                let unmanaged = URL(fileURLWithPath: storePath, isDirectory: true)
+                    .appendingPathComponent("Unmanaged", isDirectory: true)
+                var copied: [String] = []
+                var errors: [String] = []
+                do {
+                    try manager.createDirectory(at: unmanaged, withIntermediateDirectories: true)
+                } catch {
+                    return ([], [error.localizedDescription])
+                }
+                for url in urls {
+                    var target = unmanaged.appendingPathComponent(url.lastPathComponent)
+                    if target.standardizedFileURL == url.standardizedFileURL {
+                        errors.append("\(url.lastPathComponent) is already in the Unmanaged folder")
+                        continue
+                    }
+                    target = Self.uniqueDestination(for: target, manager: manager)
+                    do {
+                        try manager.copyItem(at: url, to: target)
+                        copied.append(target.path)
+                    } catch {
+                        errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+                return (copied, errors)
+            }.value
+            if !result.copied.isEmpty {
+                scan()
+                showStatus("Added \(result.copied.count) item\(result.copied.count == 1 ? "" : "s") to Unmanaged in \(storeName)")
+                ActivityLog.shared.log(
+                    .unmanagedImported,
+                    level: .normal,
+                    title: "Added \(result.copied.count) Finder item\(result.copied.count == 1 ? "" : "s") to Unmanaged",
+                    summary: storeName,
+                    details: [
+                        "store": storeName,
+                        "count": String(result.copied.count),
+                        "files": result.copied.joined(separator: " | "),
+                        "errors": result.errors.joined(separator: " | ")
+                    ]
+                )
+            }
+            if let error = result.errors.first {
+                errorMessage = error
+            }
+        }
+    }
+
+    func backupFinderItems(_ urls: [URL], to binding: BackupBinding, style: FilenameStyle) {
+        guard !runningIDs.contains(binding.id) else { return }
+        guard let store = store(for: binding) else {
+            errorMessage = "Choose a store for this binding first."
+            return
+        }
+        guard store.isOnline else {
+            errorMessage = "\(store.name) is offline. Connect it and try again."
+            return
+        }
+        let wasEmpty = snapshots.contains { $0.record.bindingID == binding.id } == false
+        runningIDs.insert(binding.id)
+        finderIntake = nil
+        showStatus("Backing up \(urls.count) Finder item\(urls.count == 1 ? "" : "s") to \(binding.name)…")
+        ActivityLog.shared.log(
+            .backupStarted,
+            level: .minor,
+            title: "Finder backup started: \(binding.name)",
+            summary: "\(urls.count) item\(urls.count == 1 ? "" : "s")",
+            details: ["binding": binding.name, "store": store.name, "files": urls.map(\.path).joined(separator: " | ")]
+        )
+        Task {
+            var envelopes: [SnapshotEnvelope] = []
+            var errors: [String] = []
+            for url in urls {
+                do {
+                    let request = BackupRequest(
+                        sourceURL: url,
+                        bindingID: binding.id,
+                        bindingName: binding.name,
+                        categoryPath: binding.category,
+                        filenameFormat: binding.filenameFormat,
+                        style: style,
+                        store: store,
+                        compress: binding.compressBackups,
+                        includeGit: binding.includeGitMetadata,
+                        respectsGitignore: binding.respectsGitignore,
+                        projectDate: binding.projectDate
+                    )
+                    let result = try await BackupEngine.run(request)
+                    envelopes.append(
+                        SnapshotEnvelope(
+                            storeID: store.id,
+                            storeName: store.name,
+                            storePath: store.path,
+                            storeOnline: true,
+                            record: result.record,
+                            exists: true
+                        )
+                    )
+                } catch {
+                    errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            if !envelopes.isEmpty {
+                snapshots.insert(contentsOf: envelopes, at: 0)
+                snapshots.sort { $0.record.capturedAt > $1.record.capturedAt }
+                if binding.archiveAfterFirstBackup && wasEmpty,
+                   let index = bindings.firstIndex(where: { $0.id == binding.id }) {
+                    bindings[index].isArchived = true
+                }
+                hydrateBindings()
+                persist(message: "Backed up \(envelopes.count) item\(envelopes.count == 1 ? "" : "s") to \(binding.name)")
+                ActivityLog.shared.log(
+                    .backupCompleted,
+                    level: errors.isEmpty ? .major : .error,
+                    title: "Backed up \(envelopes.count) Finder item\(envelopes.count == 1 ? "" : "s") to \(binding.name)",
+                    summary: envelopes.map(\.record.id).joined(separator: ", "),
+                    details: [
+                        "binding": binding.name,
+                        "bindingID": binding.id.uuidString,
+                        "store": store.name,
+                        "count": String(envelopes.count),
+                        "snapshotIDs": envelopes.map(\.record.id).joined(separator: ","),
+                        "files": envelopes.map { $0.record.sourcePath }.joined(separator: " | "),
+                        "errors": errors.joined(separator: " | ")
+                    ]
+                )
+            }
+            runningIDs.remove(binding.id)
+            if let error = errors.first {
+                errorMessage = error
+            }
+            if envelopes.isEmpty && errors.isEmpty {
+                showStatus("Nothing backed up")
+            }
+        }
+    }
+
+    private nonisolated static func uniqueDestination(for url: URL, manager: FileManager) -> URL {
+        guard manager.fileExists(atPath: url.path) else { return url }
+        let ext = url.pathExtension
+        let base = url.deletingPathExtension().lastPathComponent
+        let directory = url.deletingLastPathComponent()
+        var index = 2
+        while true {
+            let name = ext.isEmpty ? "\(base) \(index)" : "\(base) \(index).\(ext)"
+            let candidate = directory.appendingPathComponent(name)
+            if !manager.fileExists(atPath: candidate.path) { return candidate }
+            index += 1
+        }
+    }
 
     private func showStatus(_ message: String) {
         statusMessage = message

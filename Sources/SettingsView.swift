@@ -1,4 +1,5 @@
 import AppKit
+import FinderSync
 import SwiftUI
 
 struct SettingsView: View {
@@ -11,6 +12,8 @@ struct SettingsView: View {
     @State private var paletteScheme: ColorScheme = .light
     @State private var previewTone: CardTone = .orange
     @State private var showingFormatHelp = false
+    @State private var finderEnabled = false
+    @State private var finderMessage = ""
 
     @AppStorage("sidebar.smartFolders") private var showSmartFolders = true
     @AppStorage("sidebar.categories") private var showCategories = true
@@ -624,12 +627,57 @@ struct SettingsView: View {
                         selection: $settings.defaultViewMode
                     )
                 }
-                settingsRow("Default sort", icon: "arrow.up.arrow.down") {
-                    GlassMenu(options: LibrarySort.allCases.map { ($0, $0.rawValue) }, selection: $settings.defaultSort)
+                settingsRow("Smart folder sort", icon: "clock.arrow.circlepath") {
+                    GlassMenu(options: LibrarySort.allCases.map { ($0, $0.rawValue) }, selection: $settings.defaultSmartSort)
+                }
+                settingsRow("Category sort", icon: "folder") {
+                    GlassMenu(options: LibrarySort.allCases.map { ($0, $0.rawValue) }, selection: $settings.defaultCategorySort)
                 }
                 settingsRow("Time range", icon: "clock") {
                     GlassMenu(options: TimeScope.allCases.map { ($0, $0.rawValue) }, selection: $settings.defaultScope)
                 }
+            }
+
+            settingsGroup("Finder") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 9) {
+                        Circle()
+                            .fill(finderEnabled ? Color.appGreen : Color.appOrange)
+                            .frame(width: 7, height: 7)
+                        Text(finderEnabled ? "Finder extension enabled" : "Finder extension needs permission")
+                            .font(.bindery(12.5, .medium))
+                            .foregroundStyle(Color.primary.opacity(0.86))
+                        Spacer()
+                    }
+                    Text("Adds **Use Bindery** to the Finder right-click menu for files and folders: send them to Unmanaged or back them up into a binding.")
+                        .font(.bindery(11.5))
+                        .foregroundStyle(Color.appSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Button(finderEnabled ? "Open Finder Settings" : "Enable Finder Extension") {
+                            if finderEnabled {
+                                openFinderExtensionSettings()
+                            } else {
+                                enableFinderExtension()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        if !finderEnabled {
+                            Button("Open Finder Settings") { openFinderExtensionSettings() }
+                                .buttonStyle(.plain)
+                                .font(.bindery(11.5, .medium))
+                                .foregroundStyle(Color.appSecondaryText)
+                        }
+                        Spacer()
+                        if !finderMessage.isEmpty {
+                            Text(finderMessage)
+                                .font(.bindery(10.5))
+                                .foregroundStyle(Color.appTertiaryText)
+                        }
+                    }
+                }
+                .padding(14)
             }
 
             settingsGroup("Appearance") {
@@ -666,6 +714,48 @@ struct SettingsView: View {
                 }
             }
 
+        }
+    }
+
+    private func refreshFinderStatus() {
+        finderEnabled = FIFinderSyncController.isExtensionEnabled
+    }
+
+    private func enableFinderExtension() {
+        let appex = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/PlugIns/BinderyFinder.appex")
+        _ = runPluginkit(["-a", appex.path])
+        _ = runPluginkit(["-e", "use", "-i", "com.econsun.bindery.finder"])
+        refreshFinderStatus()
+        if finderEnabled {
+            finderMessage = "Enabled"
+        } else {
+            finderMessage = "Open Finder Settings to allow it"
+        }
+    }
+
+    private func runPluginkit(_ arguments: [String]) -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pluginkit")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        } catch {
+            return -1
+        }
+    }
+
+    private func openFinderExtensionSettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.ExtensionsPreferences?extensionPointIdentifier=com.apple.FinderSync",
+            "x-apple.systempreferences:com.apple.ExtensionsPreferences"
+        ]
+        for string in urls {
+            if let url = URL(string: string), NSWorkspace.shared.open(url) { return }
         }
     }
 

@@ -8,8 +8,7 @@ Bindery writes every mutating operation to a durable, append-only JSON Lines fil
 
 Open **Timeline** in the sidebar to inspect it. The view supports text search,
 filters (`All`, `Changes`, `Backups`, `Scans`, `Errors`), expandable details, a
-**Copy JSONL** button for the visible events, and **Reveal Log** to open the file
-in Finder.
+wide-screen event inspector, **Copy Event**, **Copy JSONL**, and **Reveal Log**.
 
 ## Format
 

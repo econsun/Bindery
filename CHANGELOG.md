@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 — 2026-11-26
+
+- Finder integration: right-click any file or folder and choose **Use Bindery → Add to Unmanaged** or **Back Up to Binding…**. The new intake sheet lets you pick a store or search bindings without leaving the flow. Folders are supported.
+- Finder extension is embedded in the app; enable it from **Settings → General → Finder**.
+- Wide-screen layouts now use the available width: adaptive card grid, flexible column layouts for All Backups, Unmanaged, and the binding list, plus a right-side event inspector in Timeline.
+- Timeline dots now align with event titles.
+- Global sorting defaults are split: **Smart folder sort** (last backup by default) and **Category sort** (name by default), configurable in Settings.
+- Double-clicking the top of the window zooms/maximizes it.
+- Context menus now include Copy Snapshot ID/Path, Copy Binding ID, Show Store in Finder, and clearer binding actions.
+
 ## 1.1.1 — 2026-11-25
 
 - Increased secondary and tertiary text contrast in both light and dark mode.

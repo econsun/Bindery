@@ -19,14 +19,35 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.1</string>
+    <string>1.2.0</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>4</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Bindery reads and writes the backup stores you choose, which may be inside Documents.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Bindery reads and writes the backup stores you choose, which may be on the Desktop.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Bindery reads and writes the backup stores you choose, which may be in Downloads.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Bindery reads and writes backup stores you choose on removable volumes.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>Bindery reads and writes backup stores you choose on network volumes.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Paul Sun</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.econsun.bindery</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>bindery</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

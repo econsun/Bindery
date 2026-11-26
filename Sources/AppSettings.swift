@@ -34,7 +34,8 @@ final class AppSettings: ObservableObject {
     @Published var defaultViewMode: LibraryViewMode = .grid { didSet { save() } }
     @Published var defaultCategory = "Uncategorized" { didSet { save() } }
     @Published var defaultDestinationPath = "" { didSet { save() } }
-    @Published var defaultSort: LibrarySort = .name { didSet { save() } }
+    @Published var defaultSmartSort: LibrarySort = .lastBackup { didSet { save() } }
+    @Published var defaultCategorySort: LibrarySort = .name { didSet { save() } }
     @Published var defaultScope: TimeScope = .all { didSet { save() } }
     @Published var launchAppearance: LaunchAppearance = .system { didSet { save() } }
     @Published var rescanOnLaunch = true { didSet { save() } }
@@ -67,7 +68,9 @@ final class AppSettings: ObservableObject {
         defaultViewMode = d.string(forKey: Keys.viewMode).flatMap(LibraryViewMode.init(rawValue:)) ?? .grid
         defaultCategory = d.string(forKey: Keys.category) ?? "Uncategorized"
         defaultDestinationPath = d.string(forKey: Keys.destination) ?? ""
-        defaultSort = d.string(forKey: Keys.sort).flatMap(LibrarySort.init(rawValue:)) ?? .name
+        let legacySort = d.string(forKey: Keys.sort).flatMap(LibrarySort.init(rawValue:))
+        defaultSmartSort = d.string(forKey: Keys.smartSort).flatMap(LibrarySort.init(rawValue:)) ?? legacySort ?? .lastBackup
+        defaultCategorySort = d.string(forKey: Keys.categorySort).flatMap(LibrarySort.init(rawValue:)) ?? .name
         defaultScope = d.string(forKey: Keys.scope).flatMap(TimeScope.init(rawValue:)) ?? .all
         launchAppearance = d.string(forKey: Keys.launchAppearance).flatMap(LaunchAppearance.init(rawValue:)) ?? .system
         rescanOnLaunch = d.object(forKey: Keys.rescan) as? Bool ?? true
@@ -128,7 +131,8 @@ final class AppSettings: ObservableObject {
         defaults.set(defaultViewMode.rawValue, forKey: Keys.viewMode)
         defaults.set(defaultCategory, forKey: Keys.category)
         defaults.set(defaultDestinationPath, forKey: Keys.destination)
-        defaults.set(defaultSort.rawValue, forKey: Keys.sort)
+        defaults.set(defaultSmartSort.rawValue, forKey: Keys.smartSort)
+        defaults.set(defaultCategorySort.rawValue, forKey: Keys.categorySort)
         defaults.set(defaultScope.rawValue, forKey: Keys.scope)
         defaults.set(launchAppearance.rawValue, forKey: Keys.launchAppearance)
         defaults.set(rescanOnLaunch, forKey: Keys.rescan)
@@ -151,6 +155,8 @@ final class AppSettings: ObservableObject {
         static let category = "Bindery.DefaultCategory"
         static let destination = "Bindery.DefaultDestination"
         static let sort = "Bindery.DefaultSort"
+        static let smartSort = "Bindery.DefaultSmartSort"
+        static let categorySort = "Bindery.DefaultCategorySort"
         static let scope = "Bindery.DefaultScope"
         static let launchAppearance = "Bindery.LaunchAppearance"
         static let rescan = "Bindery.RescanOnLaunch"

@@ -59,11 +59,19 @@ struct UnmanagedView: View {
                     } else {
                         if !unboundGroups.isEmpty {
                             sectionHeader("Backups Without a Binding", count: unboundGroups.count)
+                            ViewThatFits(in: .horizontal) {
+                                SnapshotColumnHeader()
+                                EmptyView()
+                            }
                             unboundList
                         }
 
                         if !items.isEmpty {
                             sectionHeader("Files in Stores", count: items.count)
+                            ViewThatFits(in: .horizontal) {
+                                UnmanagedFileColumnHeader()
+                                EmptyView()
+                            }
                             VStack(spacing: 2) {
                                 ForEach(items) { item in
                                     UnmanagedRow(item: item)
@@ -152,12 +160,13 @@ struct UnmanagedView: View {
                     Button {
                         pickerRequest = UnmanagedMoveRequest(targets: contextIDs(for: group))
                     } label: {
-                        Label("Move to Binding…", systemImage: "link")
+                        Label("Move to Binding", systemImage: "link")
                     }
+                    .disabled(state.bindings.isEmpty)
                     Button {
                         requestRename(contextIDs(for: group))
                     } label: {
-                        Label("Rename…", systemImage: "textformat")
+                        Label("Rename", systemImage: "textformat")
                     }
                     Button {
                         state.verifySnapshots(contextIDs(for: group))
@@ -165,10 +174,28 @@ struct UnmanagedView: View {
                         Label("Verify", systemImage: "checkmark.shield")
                     }
                     Divider()
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: group.primary.absolutePath)])
+                    } label: {
+                        Label("Show in Finder", systemImage: "magnifyingglass")
+                    }
+                    .disabled(group.availability != .available)
+                    Button {
+                        copyToPasteboard(group.record.id)
+                    } label: {
+                        Label("Copy Snapshot ID", systemImage: "number")
+                    }
+                    Button {
+                        copyToPasteboard(group.primary.absolutePath)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                    .disabled(group.availability != .available)
+                    Divider()
                     Button(role: .destructive) {
                         requestDelete(contextIDs(for: group))
                     } label: {
-                        Label("Delete…", systemImage: "trash")
+                        Label("Delete", systemImage: "trash")
                     }
                 }
                 .draggable(dragPayload(for: group)) {
@@ -331,6 +358,11 @@ struct UnmanagedView: View {
         .frame(maxWidth: .infinity, minHeight: 300)
     }
 
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+
     private var orderedIDs: [String] {
         unboundGroups.map(\.id)
     }
@@ -454,52 +486,10 @@ private struct UnmanagedRow: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-                Image(systemName: "doc")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.62))
-            }
-            .frame(width: 32, height: 32)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.name)
-                    .font(.bindery(14, .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.90))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                HStack(spacing: 6) {
-                    Text(item.storeName)
-                    separator
-                    Text(item.categoryPath)
-                    separator
-                    Text(item.relativePath)
-                }
-                .font(.bindery(12))
-                .foregroundStyle(Color.appSecondaryText)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            }
-
-            Spacer(minLength: 8)
-
-            Text(sizeText)
-                .font(.bindery(12, .medium))
-                .monospacedDigit()
-                .foregroundStyle(Color.appSecondaryText)
-                .frame(width: 70, alignment: .trailing)
-
-            Button("Import") {
-                state.importUnmanaged(item)
-            }
-            .buttonStyle(UnmanagedActionStyle(prominent: true))
-
-            Button("Ignore") {
-                state.ignoreUnmanaged(item)
-            }
-            .buttonStyle(UnmanagedActionStyle(prominent: false))
+        ViewThatFits(in: .horizontal) {
+            wideRow
+                .frame(minWidth: 1080)
+            compactRow
         }
         .padding(.horizontal, 12)
         .frame(height: 58)
@@ -510,17 +500,150 @@ private struct UnmanagedRow: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .help(item.absolutePath)
+        .contextMenu {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.absolutePath)])
+            } label: {
+                Label("Show in Finder", systemImage: "magnifyingglass")
+            }
+            Button {
+                copyToPasteboard(item.absolutePath)
+            } label: {
+                Label("Copy Path", systemImage: "doc.on.doc")
+            }
+            Button {
+                copyToPasteboard(item.name)
+            } label: {
+                Label("Copy Name", systemImage: "textformat")
+            }
+            Divider()
+            Button {
+                state.importUnmanaged(item)
+            } label: {
+                Label("Import", systemImage: "tray.and.arrow.down")
+            }
+            Button(role: .destructive) {
+                state.ignoreUnmanaged(item)
+            } label: {
+                Label("Ignore", systemImage: "eye.slash")
+            }
+        }
     }
 
-    private var separator: some View {
-        Circle()
-            .fill(Color.primary.opacity(0.30))
-            .frame(width: 2.5, height: 2.5)
+    private var compactRow: some View {
+        HStack(spacing: 12) {
+            icon
+            nameBlock
+            Spacer(minLength: 8)
+            sizeView.frame(width: 70, alignment: .trailing)
+            actions
+        }
+    }
+
+    private var wideRow: some View {
+        HStack(spacing: 14) {
+            icon
+            nameBlock
+                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+            Text(item.storeName)
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+            Text(item.categoryPath)
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+            Text(item.relativePath)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color.appTertiaryText)
+                .lineLimit(1)
+                .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
+            sizeView.frame(width: 70, alignment: .trailing)
+            actions
+        }
+    }
+
+    private var icon: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+            Image(systemName: item.isDirectory ? "folder" : "doc")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.62))
+        }
+        .frame(width: 32, height: 32)
+    }
+
+    private var nameBlock: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(item.name)
+                .font(.bindery(14, .semibold))
+                .foregroundStyle(Color.primary.opacity(0.90))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(item.relativePath)
+                .font(.bindery(12))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private var sizeView: some View {
+        Text(sizeText)
+            .font(.bindery(12, .medium))
+            .monospacedDigit()
+            .foregroundStyle(Color.appSecondaryText)
+    }
+
+    private var actions: some View {
+        HStack(spacing: 7) {
+            Button("Import") {
+                state.importUnmanaged(item)
+            }
+            .buttonStyle(UnmanagedActionStyle(prominent: true))
+
+            Button("Ignore") {
+                state.ignoreUnmanaged(item)
+            }
+            .buttonStyle(UnmanagedActionStyle(prominent: false))
+        }
     }
 
     private var sizeText: String {
         guard let bytes = item.byteCount else { return "—" }
         return fileSizeText(bytes)
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}
+
+private struct UnmanagedFileColumnHeader: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Color.clear.frame(width: 44, height: 1)
+            Text("Name")
+                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+            Text("Store")
+                .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+            Text("Category")
+                .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+            Text("Path")
+                .frame(minWidth: 220, maxWidth: .infinity, alignment: .leading)
+            Text("Size")
+                .frame(width: 70, alignment: .trailing)
+            Color.clear.frame(width: 130, height: 1)
+        }
+        .font(.bindery(11.5, .semibold))
+        .foregroundStyle(Color.appSecondaryText)
+        .padding(.horizontal, 12)
+        .frame(height: 26)
+        .frame(minWidth: 1080)
     }
 }
 

@@ -55,6 +55,7 @@ struct LibraryView: View {
             searchFocused = false
             search = ""
             if newValue != .backups { snapshotBindingFilter = nil }
+            applyDefaultSort(for: newValue)
         }
         .onChange(of: sort) { _, _ in searchFocused = false }
         .onChange(of: cardWidth) { _, _ in searchFocused = false }
@@ -69,6 +70,11 @@ struct LibraryView: View {
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers)
             return true
+        }
+        .sheet(item: $state.finderIntake) { intake in
+            FinderIntakeSheet(intake: intake)
+                .environmentObject(state)
+                .environmentObject(appSettings)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -258,12 +264,26 @@ struct LibraryView: View {
         )
     }
 
+    private func applyDefaultSort(for selection: SidebarSelection) {
+        let defaultSort: LibrarySort
+        if selection.usesCategorySortDefault {
+            defaultSort = appSettings.defaultCategorySort
+        } else if selection.usesSmartSortDefault {
+            defaultSort = appSettings.defaultSmartSort
+        } else {
+            return
+        }
+        sort = defaultSort
+        sortAscending = defaultSort.defaultAscending
+    }
+
     private func applyLaunchDefaults() {
         guard !didApplyDefaultViewMode else { return }
         viewMode = appSettings.defaultViewMode
         scope = appSettings.defaultScope
-        sort = appSettings.defaultSort
-        sortAscending = appSettings.defaultSort.defaultAscending
+        let initialSort = sidebar.usesCategorySortDefault ? appSettings.defaultCategorySort : appSettings.defaultSmartSort
+        sort = initialSort
+        sortAscending = initialSort.defaultAscending
         if let scheme = appSettings.launchColorScheme {
             forcedScheme = scheme
         }
@@ -1000,6 +1020,7 @@ private struct LibraryContent: View {
     let assignSnapshots: (Set<String>, BackupBinding) -> Void
     let create: () -> Void
     let dismissSearchFocus: () -> Void
+    @State private var gridWidth: CGFloat = 0
 
     var body: some View {
         ScrollView {
@@ -1045,12 +1066,18 @@ private struct LibraryContent: View {
     }
 
     private var cardGrid: some View {
-        let width = CGFloat(cardWidth)
+        let minWidth = CGFloat(cardWidth)
+        let horizontalSpacing = max(14, minWidth * 0.10)
+        let columnCount = gridWidth > 0
+            ? max(1, Int((gridWidth + horizontalSpacing) / (minWidth + horizontalSpacing)))
+            : 4
+        let width = gridWidth > 0
+            ? (gridWidth - CGFloat(columnCount - 1) * horizontalSpacing) / CGFloat(columnCount)
+            : minWidth
         let scale = width / BindingFolderCard.designWidth
-        let horizontalSpacing = max(20, width * 0.18)
-        let verticalSpacing = max(30, width * 0.24)
+        let verticalSpacing = max(24, width * 0.18)
         return LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: horizontalSpacing, alignment: .top)],
+            columns: Array(repeating: GridItem(.flexible(), spacing: horizontalSpacing, alignment: .top), count: columnCount),
             alignment: .center,
             spacing: verticalSpacing
         ) {
@@ -1070,6 +1097,11 @@ private struct LibraryContent: View {
         .padding(.top, 12)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, alignment: .center)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            if abs(width - gridWidth) > 1 { gridWidth = width }
+        }
         .id(title + "|" + viewMode.rawValue)
     }
 
@@ -1092,14 +1124,16 @@ private struct LibraryContent: View {
     private var listHeader: some View {
         HStack(spacing: 12) {
             Color.clear.frame(width: 30, height: 1)
-            listHeaderButton("Name", option: .name, width: 170)
-            listHeaderButton("Category", option: .category, width: 100)
-            listHeaderButton("Status", option: .status, width: 125)
-            listHeaderButton("Last Backup", option: .lastBackup, width: 115)
+            listHeaderButton("Name", option: .name, minWidth: 150)
+            listHeaderButton("Category", option: .category, minWidth: 95)
+            Text("Store")
+                .frame(minWidth: 100, maxWidth: .infinity, alignment: .leading)
+            listHeaderButton("Status", option: .status, minWidth: 100)
+            listHeaderButton("Last Backup", option: .lastBackup, minWidth: 95)
             Text("Backup Size")
-                .frame(width: 82, alignment: .leading)
-            listHeaderButton("Type", option: .kind, width: 65)
-            Spacer()
+                .frame(minWidth: 70, maxWidth: .infinity, alignment: .leading)
+            listHeaderButton("Type", option: .kind, minWidth: 55)
+            Color.clear.frame(width: 42, height: 1)
         }
         .font(.bindery(12.5, .semibold))
         .foregroundStyle(Color.appSecondaryText)
@@ -1107,7 +1141,7 @@ private struct LibraryContent: View {
         .frame(height: 30)
     }
 
-    private func listHeaderButton(_ title: String, option: LibrarySort, width: CGFloat) -> some View {
+    private func listHeaderButton(_ title: String, option: LibrarySort, minWidth: CGFloat) -> some View {
         Button {
             if sort == option {
                 if sortAscending {
@@ -1127,7 +1161,7 @@ private struct LibraryContent: View {
                         .font(.system(size: 8, weight: .bold))
                 }
             }
-            .frame(width: width, alignment: .leading)
+            .frame(minWidth: minWidth, maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1195,6 +1229,7 @@ private struct ActivityStrip: View {
 private struct BindingListRow: View {
     let binding: BackupBinding
     let isRunning: Bool
+    @EnvironmentObject private var state: LibraryState
     @Environment(\.colorScheme) private var colorScheme
     @State private var hovering = false
 
@@ -1233,7 +1268,7 @@ private struct BindingListRow: View {
                 .font(.bindery(13.5, .semibold))
                 .foregroundStyle(Color.primary.opacity(0.92))
                 .lineLimit(1)
-                .frame(width: 170, alignment: .leading)
+                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
             Text(binding.category)
                 .font(.bindery(12.5, .medium))
                 .foregroundStyle(Color.appSecondaryText)
@@ -1241,25 +1276,30 @@ private struct BindingListRow: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3.5)
                 .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .frame(width: 100, alignment: .leading)
+                .frame(minWidth: 95, maxWidth: .infinity, alignment: .leading)
+            Text(state.store(for: binding)?.name ?? "—")
+                .font(.bindery(12.5, .medium))
+                .foregroundStyle(Color.appSecondaryText)
+                .lineLimit(1)
+                .frame(minWidth: 100, maxWidth: .infinity, alignment: .leading)
             StatusDotText(
                 text: statusText,
                 color: statusDot,
                 font: .bindery(12.5, .medium)
             )
             .foregroundStyle(Color.appSecondaryText)
-            .frame(width: 125, alignment: .leading)
+            .frame(minWidth: 100, maxWidth: .infinity, alignment: .leading)
             Text(lastBackupText)
                 .font(.bindery(12.5, .medium))
                 .foregroundStyle(Color.appSecondaryText)
                 .monospacedDigit()
                 .lineLimit(1)
-                .frame(width: 115, alignment: .leading)
+                .frame(minWidth: 95, maxWidth: .infinity, alignment: .leading)
             Text(backupSizeText)
                 .font(.bindery(12.5, .medium))
                 .foregroundStyle(Color.appSecondaryText)
                 .monospacedDigit()
-                .frame(width: 82, alignment: .leading)
+                .frame(minWidth: 70, maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 5) {
                 Image(systemName: binding.kind.icon)
                     .font(.system(size: 11))
@@ -1267,8 +1307,7 @@ private struct BindingListRow: View {
             }
             .font(.bindery(12, .medium))
             .foregroundStyle(Color.appSecondaryText)
-            .frame(width: 65, alignment: .leading)
-            Spacer()
+            .frame(minWidth: 55, maxWidth: .infinity, alignment: .leading)
             if isRunning {
                 ProgressView().controlSize(.mini).frame(width: 16)
             }
@@ -2970,18 +3009,21 @@ private struct SidebarDropModifier: ViewModifier {
 private struct WindowConfigurator: NSViewRepresentable {
     let colorScheme: ColorScheme?
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
-        DispatchQueue.main.async { configure(view.window) }
+        DispatchQueue.main.async { configure(view.window, coordinator: context.coordinator) }
         return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async { configure(view.window) }
+        DispatchQueue.main.async { configure(view.window, coordinator: context.coordinator) }
     }
 
-    private func configure(_ window: NSWindow?) {
+    private func configure(_ window: NSWindow?, coordinator: Coordinator) {
         guard let window else { return }
+        coordinator.install(on: window)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -2993,6 +3035,27 @@ private struct WindowConfigurator: NSViewRepresentable {
             : colorScheme == .dark ? NSAppearance(named: .darkAqua) : nil
         DispatchQueue.main.async {
             insetTrafficLights(window)
+        }
+    }
+
+    final class Coordinator {
+        private var monitor: Any?
+
+        func install(on window: NSWindow) {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+                guard event.window === window, event.clickCount == 2 else { return event }
+                let point = event.locationInWindow
+                let titlebarHeight = max(28, window.frame.height - window.contentLayoutRect.maxY)
+                guard point.y >= window.frame.height - titlebarHeight - 4,
+                      point.x > 86 else { return event }
+                window.zoom(nil)
+                return nil
+            }
+        }
+
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
         }
     }
 

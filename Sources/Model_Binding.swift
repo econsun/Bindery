@@ -423,6 +423,22 @@ func matchesSidebar(_ binding: BackupBinding, selection: SidebarSelection) -> Bo
     }
 }
 
+extension SidebarSelection {
+    var usesCategorySortDefault: Bool {
+        if case .category = self { return true }
+        return false
+    }
+
+    var usesSmartSortDefault: Bool {
+        switch self {
+        case .category, .backups, .unmanaged, .timeline:
+            return false
+        default:
+            return true
+        }
+    }
+}
+
 func matchesTime(_ binding: BackupBinding, scope: TimeScope) -> Bool {
     guard let startDate = scope.startDate else { return true }
     return (binding.lastBackupAt ?? binding.createdAt) >= startDate

@@ -17,7 +17,7 @@ The app is written in Swift and uses SwiftUI/AppKit directly. There is no Xcode 
 ./build.sh
 ```
 
-`build.sh` creates `Bindery.app` in the repository root. The app is ad-hoc signed, so on first launch use **right-click → Open** if Gatekeeper asks for confirmation. macOS may also ask for access to your Documents folder (or another volume) so Bindery can read and write the store you point it at; allow it.
+`build.sh` creates `Bindery.app` in the repository root, including the Finder extension. The app is ad-hoc signed, so on first launch use **right-click → Open** if Gatekeeper asks for confirmation. macOS may also ask for access to your Documents folder (or another volume) so Bindery can read and write the store you point it at; allow it. To use **Use Bindery** in Finder, move the app to Applications and enable the extension in **Settings → General → Finder** (or System Settings → Login Items & Extensions → Finder Extensions).
 
 ## Objects
 
@@ -69,7 +69,8 @@ Category paths match the sidebar hierarchy. Renaming or moving a category moves 
 - `Archive after first backup` archives a binding after its first successful snapshot.
 - The scanner relocates snapshots by permanent ID and by size/hash, preserves binding/date metadata when a snapshot moves between stores, and verifies stored digests on demand.
 - The whole library is file-first: the catalog is JSON next to the snapshots, and the app never deletes source files.
-- **Timeline** records backups, binding/category/store edits, moves, renames, deletes, verifications, imports, and scans in a durable JSONL log. Filters, expandable details, **Copy JSONL**, and **Reveal Log** make the history useful to both people and AI tools. See [Docs/ACTIVITY_LOG.md](Docs/ACTIVITY_LOG.md).
+- **Timeline** records backups, binding/category/store edits, moves, renames, deletes, verifications, imports, and scans in a durable JSONL log. Filters, an event inspector, **Copy JSONL**, and **Reveal Log** make the history useful to both people and AI tools. See [Docs/ACTIVITY_LOG.md](Docs/ACTIVITY_LOG.md).
+- **Use Bindery** in Finder: right-click files or folders to send them to Unmanaged or back them up into a binding. Enable the embedded Finder extension in **Settings → General → Finder**.
 
 ## Project layout
 

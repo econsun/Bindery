@@ -29,8 +29,24 @@ fi
 /bin/mkdir -p "$CONTENTS_DIR/Resources"
 /bin/cp "$PROJECT_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
 /bin/cp "$PROJECT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
+
+FINDER_SOURCE="$PROJECT_DIR/Sources/FinderSync/BinderyFinderSync.swift"
+if [[ -f "$FINDER_SOURCE" ]]; then
+  APPEX="$CONTENTS_DIR/PlugIns/BinderyFinder.appex"
+  /bin/mkdir -p "$APPEX/Contents/MacOS"
+  /bin/cp "$PROJECT_DIR/Resources/FinderSync-Info.plist" "$APPEX/Contents/Info.plist"
+  /usr/bin/swiftc -sdk "$SDK_PATH" "$FINDER_SOURCE" \
+    -target "$TARGET" -module-name BinderyFinder \
+    -framework FinderSync -framework AppKit \
+    -Xlinker -e -Xlinker _NSExtensionMain \
+    -o "$APPEX/Contents/MacOS/BinderyFinder"
+  /usr/bin/xattr -cr "$APPEX"
+  /usr/bin/codesign --force --sign - --entitlements "$PROJECT_DIR/Resources/FinderSync.entitlements" "$APPEX"
+fi
+
 /usr/bin/xattr -cr "$STAGED_APP"
-/usr/bin/codesign --force --deep --sign - --requirements '=designated => identifier "com.econsun.bindery"' "$STAGED_APP"
+/usr/bin/codesign --force --sign - --requirements '=designated => identifier "com.econsun.bindery"' "$STAGED_APP"
+/usr/bin/codesign --verify --deep --strict "$STAGED_APP"
 
 /bin/rm -rf "$APP_DIR"
 /usr/bin/ditto --noextattr --noqtn "$STAGED_APP" "$APP_DIR"
