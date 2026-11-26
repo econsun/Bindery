@@ -38,7 +38,7 @@ enum TimelineFilterField: String, Codable, CaseIterable, Identifiable {
         case .type, .level, .actor, .kind:
             return [.isExactly, .isNot]
         case .title, .summary, .details:
-            return [.isExactly, .isNot, .contains, .doesNotContain]
+            return [.isExactly, .isNot, .contains, .doesNotContain, .startsWith, .endsWith, .isEmpty, .isNotEmpty]
         case .time:
             return [.before, .after, .between]
         }
@@ -58,6 +58,10 @@ enum TimelineFilterOperator: String, Codable, CaseIterable, Identifiable {
     case isNot
     case contains
     case doesNotContain
+    case startsWith
+    case endsWith
+    case isEmpty
+    case isNotEmpty
     case before
     case after
     case between
@@ -70,10 +74,18 @@ enum TimelineFilterOperator: String, Codable, CaseIterable, Identifiable {
         case .isNot: return "is not"
         case .contains: return "contains"
         case .doesNotContain: return "does not contain"
+        case .startsWith: return "starts with"
+        case .endsWith: return "ends with"
+        case .isEmpty: return "is empty"
+        case .isNotEmpty: return "is not empty"
         case .before: return "before"
         case .after: return "after"
         case .between: return "between"
         }
+    }
+
+    var requiresValue: Bool {
+        self != .isEmpty && self != .isNotEmpty
     }
 }
 
@@ -102,7 +114,59 @@ enum TimelineType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+extension TimelineType {
+    static var filterOptions: [TimelineType] {
+        allCases.filter { $0 != .scan }
+    }
+
+    var tint: Color {
+        switch self {
+        case .backup: return Color.appGreen
+        case .binding: return Color(rgb: 0xA855F7)
+        case .snapshot: return Color(rgb: 0x3B82F6)
+        case .category: return Color.appOrange
+        case .store: return Color(rgb: 0x06B6D4)
+        case .scan: return Color(rgb: 0x14B8A6)
+        case .system: return Color.appGray
+        case .unmanaged: return Color(rgb: 0xD97706)
+        }
+    }
+}
+
 extension ActivityKind {
+    static var filterOptions: [ActivityKind] {
+        allCases.filter { $0 != .scan && $0 != .backupStarted }
+    }
+
+    var displayTitle: String {
+        switch self {
+        case .appLaunch: return "App launched"
+        case .scan: return "Stores scanned"
+        case .backupStarted: return "Backup started"
+        case .backupCompleted: return "Backup completed"
+        case .backupFailed: return "Backup failed"
+        case .bindingCreated: return "Binding created"
+        case .bindingUpdated: return "Binding updated"
+        case .bindingDeleted: return "Binding deleted"
+        case .bindingArchived: return "Binding archived"
+        case .bindingFavorite: return "Binding favorited"
+        case .bindingCategory: return "Binding category changed"
+        case .categoryCreated: return "Category created"
+        case .categoryRenamed: return "Category renamed"
+        case .categoryMoved: return "Category moved"
+        case .categoryRemoved: return "Category removed"
+        case .storeAdded: return "Store added"
+        case .storeRemoved: return "Store removed"
+        case .snapshotAssigned: return "Snapshot assigned"
+        case .snapshotMovedStore: return "Snapshot moved store"
+        case .snapshotRenamed: return "Snapshot renamed"
+        case .snapshotDeleted: return "Snapshot deleted"
+        case .snapshotVerified: return "Snapshot verified"
+        case .unmanagedImported: return "File imported"
+        case .unmanagedIgnored: return "File ignored"
+        }
+    }
+
     var timelineType: TimelineType {
         switch self {
         case .backupStarted, .backupCompleted, .backupFailed:
@@ -161,7 +225,10 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
         case .summary:
             return textMatch(event.summary)
         case .details:
-            return textMatch(event.searchText)
+            let text = event.details.keys.sorted()
+                .map { "\($0): \(event.details[$0] ?? "")" }
+                .joined(separator: "\n")
+            return textMatch(text)
         case .time:
             switch operation {
             case .before: return event.timestamp < start
@@ -177,6 +244,12 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
     }
 
     private func textMatch(_ value: String) -> Bool {
+        if operation == .isEmpty {
+            return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if operation == .isNotEmpty {
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
         let needle = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return true }
         switch operation {
@@ -188,6 +261,14 @@ struct TimelineFilterCondition: Codable, Identifiable, Equatable {
             return value.localizedCaseInsensitiveContains(needle)
         case .doesNotContain:
             return !value.localizedCaseInsensitiveContains(needle)
+        case .startsWith:
+            return value.range(of: needle, options: [.caseInsensitive, .anchored]) != nil
+        case .endsWith:
+            return value.range(of: needle, options: [.caseInsensitive, .backwards, .anchored]) != nil
+        case .isEmpty:
+            return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .isNotEmpty:
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         default:
             return true
         }
@@ -199,11 +280,23 @@ struct TimelineFilterBuilder: View {
     @Binding var matchMode: TimelineMatchMode
     let done: () -> Void
 
+    private var panelHeight: CGFloat {
+        let dateExtra = conditions.reduce(CGFloat.zero) { partial, condition in
+            partial + ((condition.field == .time && condition.operation == .between) ? 34 : 0)
+        }
+        return min(720, max(260, 194 + CGFloat(conditions.count) * 54 + dateExtra))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Filters")
-                    .font(.bindery(16, .semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Filters")
+                        .font(.bindery(16, .semibold))
+                    Text("Show events where the conditions below match.")
+                        .font(.bindery(11))
+                        .foregroundStyle(Color.appSecondaryText)
+                }
                 Spacer()
                 Button("Done", action: done)
                     .buttonStyle(.borderedProminent)
@@ -223,7 +316,7 @@ struct TimelineFilterBuilder: View {
                 .labelsHidden()
                 .frame(width: 150)
 
-                Text(matchMode == .all ? "every condition" : "any condition")
+                Text(matchMode == .all ? "All conditions must match" : "Any condition can match")
                     .font(.bindery(11))
                     .foregroundStyle(Color.appTertiaryText)
                 Spacer()
@@ -234,20 +327,43 @@ struct TimelineFilterBuilder: View {
                     .font(.bindery(12))
                     .foregroundStyle(Color.appSecondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(.vertical, 8)
             } else {
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach($conditions) { $condition in
-                            TimelineFilterConditionRow(condition: $condition) {
-                                conditions.removeAll { $0.id == condition.id }
+                HStack(spacing: 7) {
+                    Text("Field").frame(width: 92, alignment: .leading)
+                    Text("Logic").frame(width: 118, alignment: .leading)
+                    Text("Value").frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(width: 14, height: 1)
+                }
+                .font(.bindery(9.5, .semibold))
+                .foregroundStyle(Color.appTertiaryText)
+                .textCase(.uppercase)
+                .padding(.horizontal, 2)
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach($conditions) { $condition in
+                                TimelineFilterConditionRow(
+                                    condition: $condition,
+                                    remove: {
+                                        conditions.removeAll { $0.id == condition.id }
+                                    }
+                                )
+                                .overlay(alignment: .bottom) {
+                                    Divider().opacity(0.35)
+                                }
                             }
                         }
                     }
+                    .scrollIndicators(.hidden)
+                    .onChange(of: conditions.count) { _, _ in
+                        guard let last = conditions.last else { return }
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
                 }
-                .frame(maxHeight: 360)
-                .scrollIndicators(.hidden)
             }
 
             Divider().opacity(0.5)
@@ -287,9 +403,15 @@ struct TimelineFilterBuilder: View {
                 }
             }
             .font(.bindery(11.5, .medium))
+
+            Text("is = exact match · contains = text includes the value · empty operators need no value.")
+                .font(.bindery(10))
+                .foregroundStyle(Color.appTertiaryText)
         }
         .padding(16)
-        .frame(width: 580)
+        .frame(width: 640, height: panelHeight)
+        .background(Color.appBackground)
+        .animation(.easeOut(duration: 0.18), value: conditions.count)
     }
 
     private func addRange(hours: Int) {
@@ -324,6 +446,7 @@ private struct TimelineFilterConditionRow: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .frame(width: 92)
+                .help("Field to compare")
 
                 Picker("", selection: $condition.operation) {
                     ForEach(condition.field.operators) { op in
@@ -333,8 +456,16 @@ private struct TimelineFilterConditionRow: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .frame(width: 118)
+                .help("Comparison logic")
 
-                valueControl
+                if condition.operation.requiresValue {
+                    valueControl
+                } else {
+                    Text("No value")
+                        .font(.bindery(11))
+                        .foregroundStyle(Color.appTertiaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Button(action: remove) {
                     Image(systemName: "minus.circle")
@@ -345,8 +476,8 @@ private struct TimelineFilterConditionRow: View {
                 .help("Remove condition")
             }
         }
-        .padding(9)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 8)
+        .padding(.horizontal, 2)
         .onChange(of: condition.field) { _, newField in
             if !newField.operators.contains(condition.operation) {
                 condition.operation = newField.defaultOperator
@@ -359,7 +490,7 @@ private struct TimelineFilterConditionRow: View {
         switch condition.field {
         case .type:
             Picker("", selection: $condition.type) {
-                ForEach(TimelineType.allCases) { type in
+                ForEach(TimelineType.filterOptions) { type in
                     Text(type.title).tag(type)
                 }
             }
@@ -386,8 +517,8 @@ private struct TimelineFilterConditionRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         case .kind:
             Picker("", selection: $condition.kind) {
-                ForEach(ActivityKind.allCases, id: \.rawValue) { kind in
-                    Text(kind.rawValue).tag(kind)
+                ForEach(ActivityKind.filterOptions, id: \.rawValue) { kind in
+                    Text(kind.displayTitle).tag(kind)
                 }
             }
             .pickerStyle(.menu)

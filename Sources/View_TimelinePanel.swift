@@ -8,6 +8,7 @@ struct TimelinePanel: View {
     @ObservedObject private var activity = ActivityLog.shared
     @AppStorage("timeline.conditions") private var conditionsJSON = "[]"
     @AppStorage("timeline.match") private var matchRaw = TimelineMatchMode.all.rawValue
+    @AppStorage("timeline.quick") private var quickRaw = TimelineQuickScope.all.rawValue
 
     @State private var expanded: Set<UUID> = []
     @State private var showFilters = false
@@ -25,8 +26,14 @@ struct TimelinePanel: View {
         )
     }
 
+    private var quickScope: TimelineQuickScope {
+        TimelineQuickScope(rawValue: quickRaw) ?? .all
+    }
+
     private var events: [ActivityEvent] {
         activity.events.filter { event in
+            if event.kind == .scan, event.details["trigger"] != "manual" { return false }
+            guard quickScope.matches(event) else { return false }
             guard !conditions.isEmpty else { return true }
             let results = conditions.map { $0.matches(event) }
             return matchMode == .all ? results.allSatisfy { $0 } : results.contains(true)
@@ -72,6 +79,34 @@ struct TimelinePanel: View {
                 .font(.bindery(19, .semibold))
                 .foregroundStyle(Color.primary.opacity(0.94))
             Spacer()
+
+            Button {
+                showFilters = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 11.5, weight: .medium))
+                    Text("Filter")
+                        .font(.bindery(10.5, .medium))
+                }
+                .foregroundStyle(conditions.isEmpty ? Color.appSecondaryText : Color.accentColor)
+                .padding(.horizontal, 7)
+                .frame(height: 24)
+                .background(
+                    conditions.isEmpty ? Color.primary.opacity(0.05) : Color.accentColor.opacity(0.10),
+                    in: Capsule()
+                )
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showFilters) {
+                TimelineFilterBuilder(
+                    conditions: $conditions,
+                    matchMode: matchBinding,
+                    done: { showFilters = false }
+                )
+            }
+            .help("Advanced filters")
+
             Button {
                 copyJSONL()
             } label: {
@@ -114,38 +149,13 @@ struct TimelinePanel: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 8) {
-            Button {
-                showFilters.toggle()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 12, weight: .medium))
-                    if !conditions.isEmpty {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    Text("Filter")
-                        .font(.bindery(11.5, .medium))
+        HStack(spacing: 5) {
+            ForEach(TimelineQuickScope.allCases) { item in
+                Button(item.title) {
+                    quickRaw = item.rawValue
                 }
-                .foregroundStyle(conditions.isEmpty ? Color.appSecondaryText : Color.accentColor)
-                .padding(.horizontal, 8)
-                .frame(height: 24)
-                .background(
-                    conditions.isEmpty ? Color.primary.opacity(0.05) : Color.accentColor.opacity(0.10),
-                    in: Capsule()
-                )
+                .buttonStyle(TimelineQuickFilterStyle(selected: quickScope == item))
             }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showFilters, arrowEdge: .bottom) {
-                TimelineFilterBuilder(
-                    conditions: $conditions,
-                    matchMode: matchBinding,
-                    done: { showFilters = false }
-                )
-            }
-            .help("Build filter conditions")
-
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
@@ -165,6 +175,7 @@ struct TimelinePanel: View {
                 TimelinePanelRow(
                     event: event,
                     isExpanded: expanded.contains(event.id),
+                    forceExpanded: conditions.contains { $0.field == .details },
                     now: now,
                     toggle: {
                         if expanded.contains(event.id) {
@@ -228,9 +239,78 @@ struct TimelinePanel: View {
     }
 }
 
+extension ActivityEvent {
+    /// Older builds wrote machine-style change summaries such as
+    /// `Changed: showPreviewOnCover: true → false`. Keep the raw event data
+    /// intact for the JSONL log, but present a human sentence in the panel.
+    var displaySummary: String {
+        guard kind == .bindingUpdated,
+              summary.hasPrefix("Changed: "),
+              summary.contains(" → ") else { return summary }
+        let raw = String(summary.dropFirst("Changed: ".count))
+        let phrases = raw.components(separatedBy: "; ").compactMap(Self.naturalChange)
+        return phrases.isEmpty ? summary : phrases.joined(separator: " · ")
+    }
+
+    private static func naturalChange(_ part: String) -> String? {
+        let halves = part.components(separatedBy: " → ")
+        guard halves.count == 2 else { return nil }
+        let left = halves[0]
+        let newValue = halves[1]
+        let pieces = left.components(separatedBy: ": ")
+        guard pieces.count >= 2 else { return nil }
+        let key = pieces[0]
+        let oldValue = pieces.dropFirst().joined(separator: ": ")
+
+        switch key {
+        case "name":
+            return oldValue.isEmpty ? "Named the binding \(newValue)" : "Renamed from \(oldValue) to \(newValue)"
+        case "category":
+            return "Moved from \(oldValue) to \(newValue)"
+        case "kind":
+            return "Changed type from \(oldValue) to \(newValue)"
+        case "source":
+            let from = oldValue.isEmpty ? "no source" : URL(fileURLWithPath: oldValue).lastPathComponent
+            let to = newValue.isEmpty ? "no source" : URL(fileURLWithPath: newValue).lastPathComponent
+            return "Changed source from \(from) to \(to)"
+        case "store":
+            return "Moved store from \(oldValue.isEmpty ? "no store" : oldValue) to \(newValue.isEmpty ? "no store" : newValue)"
+        case "compress":
+            return newValue == "true" ? "Turned on ZIP compression" : "Turned off ZIP compression"
+        case "archiveAfterFirst":
+            return newValue == "true" ? "Turned on archive after first backup" : "Turned off archive after first backup"
+        case "gitHistory":
+            return newValue == "true" ? "Turned on Git history" : "Turned off Git history"
+        case "respectGitignore":
+            return newValue == "true" ? "Turned on gitignore handling" : "Turned off gitignore handling"
+        case "showPreviewOnCover":
+            return newValue == "true" ? "Turned on cover preview" : "Turned off cover preview"
+        case "filenameFormat":
+            return "Changed filename format to \(newValue)"
+        case "tone":
+            return "Changed cover color to \(newValue)"
+        case "coverIcon":
+            return newValue.isEmpty ? "Removed the cover icon" : "Changed the cover icon"
+        case "previewFile":
+            return newValue.isEmpty ? "Removed the cover preview image" : "Updated the cover preview image"
+        case "note":
+            return "Updated the note"
+        case "creators":
+            return "Changed creators to \(newValue)"
+        case "favorite":
+            return newValue == "true" ? "Added to favorites" : "Removed from favorites"
+        case "archived":
+            return newValue == "true" ? "Archived the binding" : "Unarchived the binding"
+        default:
+            return "Updated \(key)"
+        }
+    }
+}
+
 private struct TimelinePanelRow: View {
     let event: ActivityEvent
     let isExpanded: Bool
+    let forceExpanded: Bool
     let now: Date
     let toggle: () -> Void
 
@@ -274,7 +354,7 @@ private struct TimelinePanelRow: View {
                     .frame(width: dotSize, height: dotSize)
                     .overlay {
                         Circle()
-                            .strokeBorder(Color.appSidebar, lineWidth: event.level == .major || event.level == .error ? 2 : 0)
+                            .strokeBorder(event.level == .error ? Color.appRed : Color.appSidebar, lineWidth: event.level == .major || event.level == .error ? 2 : 0)
                     }
                     .padding(.top, 19 - dotSize / 2)
             }
@@ -300,7 +380,7 @@ private struct TimelinePanelRow: View {
                             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
                     }
                     Spacer(minLength: 2)
-                    if !event.details.isEmpty {
+                    if !event.details.isEmpty, !forceExpanded {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(Color.primary.opacity(0.34))
@@ -309,15 +389,15 @@ private struct TimelinePanelRow: View {
                 }
                 .frame(height: 24)
 
-                if !event.summary.isEmpty {
-                    Text(event.summary)
+                if !event.displaySummary.isEmpty {
+                    Text(event.displaySummary)
                         .font(.bindery(11.5))
                         .foregroundStyle(event.level == .minor ? Color.appTertiaryText : Color.appSecondaryText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if isExpanded {
+                if isExpanded || forceExpanded {
                     details
                         .padding(.top, 3)
                 }
@@ -325,7 +405,7 @@ private struct TimelinePanelRow: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
             .background(
-                isExpanded
+                (isExpanded || forceExpanded)
                     ? Color.accentColor.opacity(0.055)
                     : (event.level == .major || event.level == .error
                        ? tint.opacity(event.level == .error ? 0.075 : 0.045)
@@ -387,15 +467,7 @@ private struct TimelinePanelRow: View {
     }
 
     private var tint: Color {
-        switch event.kind.tintName {
-        case "red": return Color.appRed
-        case "green": return Color.appGreen
-        case "orange": return Color.appOrange
-        case "purple": return Color(rgb: 0xA855F7)
-        case "blue": return Color(rgb: 0x3B82F6)
-        case "cyan": return Color(rgb: 0x06B6D4)
-        default: return Color.appGray
-        }
+        event.kind.timelineType.tint
     }
 }
 
@@ -410,6 +482,53 @@ private struct TimelinePanelFilterStyle: ButtonStyle {
             .frame(height: 23)
             .background(
                 selected ? Color.accentColor : Color.primary.opacity(0.05),
+                in: Capsule()
+            )
+            .opacity(configuration.isPressed ? 0.72 : 1)
+    }
+}
+
+
+private enum TimelineQuickScope: String, CaseIterable, Identifiable {
+    case all
+    case changes
+    case backups
+    case scans
+    case errors
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: return "All"
+        case .changes: return "Changes"
+        case .backups: return "Backups"
+        case .scans: return "Scans"
+        case .errors: return "Errors"
+        }
+    }
+
+    func matches(_ event: ActivityEvent) -> Bool {
+        switch self {
+        case .all: return true
+        case .changes: return event.kind.group == .change || event.kind.group == .store
+        case .backups: return event.kind.group == .backup
+        case .scans: return event.kind.group == .scan
+        case .errors: return event.level == .error
+        }
+    }
+}
+
+private struct TimelineQuickFilterStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.bindery(10, .medium))
+            .foregroundStyle(selected ? Color.white : Color.appSecondaryText)
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .background(
+                selected ? Color.accentColor : Color.primary.opacity(0.045),
                 in: Capsule()
             )
             .opacity(configuration.isPressed ? 0.72 : 1)

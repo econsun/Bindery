@@ -31,6 +31,11 @@ struct SnapshotRenamePreview: Identifiable, Equatable {
     let status: Status
 }
 
+enum ScanTrigger {
+    case manual
+    case automatic
+}
+
 @MainActor
 final class LibraryState: ObservableObject {
     @Published private(set) var bindings: [BackupBinding] = []
@@ -451,12 +456,15 @@ final class LibraryState: ObservableObject {
         }
         var details = bindingDetails(saved)
         if let previous {
-            details["changed"] = bindingChanges(from: previous, to: saved)
+            let changes = bindingChanges(from: previous, to: saved)
+            details["changed"] = changes.joined(separator: "; ")
+            let summary = changes.prefix(2).joined(separator: " · ")
+                + (changes.count > 2 ? " · \(changes.count - 2) more" : "")
             ActivityLog.shared.log(
                 .bindingUpdated,
                 level: .major,
                 title: "Updated binding \(saved.name)",
-                summary: "Changed: \(details["changed"] ?? "")",
+                summary: summary.isEmpty ? "Saved without visible changes" : summary,
                 details: details
             )
         } else {
@@ -669,7 +677,7 @@ final class LibraryState: ObservableObject {
         }
     }
 
-    func scan() {
+    func scan(trigger: ScanTrigger = .automatic) {
         guard !isScanning else { return }
         isScanning = true
         let startedAt = Date()
@@ -696,14 +704,15 @@ final class LibraryState: ObservableObject {
                 || previousReport?.relocated != report.relocated
                 || previousReport?.unmanaged != report.unmanaged
                 || previousReport?.errors != report.errors
-            if changed || !report.errors.isEmpty {
+            if trigger == .manual && (changed || !report.errors.isEmpty) {
                 ActivityLog.shared.log(
                     .scan,
                     level: report.errors.isEmpty ? .normal : .error,
                     actor: .scan,
-                    title: "Scanned stores",
+                    title: "Completed a manual store scan",
                     summary: report.summary,
                     details: [
+                        "trigger": "manual",
                         "onlineStores": String(report.onlineStores),
                         "offlineStores": String(report.offlineStores),
                         "found": String(report.found),
@@ -1762,31 +1771,97 @@ final class LibraryState: ObservableObject {
         ]
     }
 
-    private func bindingChanges(from old: BackupBinding, to new: BackupBinding) -> String {
+    private func bindingChanges(from old: BackupBinding, to new: BackupBinding) -> [String] {
         var changes: [String] = []
-        func add(_ name: String, _ before: String, _ after: String) {
-            guard before != after else { return }
-            changes.append("\(name): \(before) → \(after)")
+
+        func change(_ oldValue: String, _ newValue: String, _ message: String) {
+            guard oldValue != newValue else { return }
+            changes.append(message)
         }
-        add("name", old.name, new.name)
-        add("category", old.category, new.category)
-        add("kind", old.kind.rawValue, new.kind.rawValue)
-        add("source", old.sourcePath, new.sourcePath)
-        add("store", store(for: old)?.name ?? "", store(for: new)?.name ?? "")
-        add("compress", old.compressBackups ? "true" : "false", new.compressBackups ? "true" : "false")
-        add("archiveAfterFirst", old.archiveAfterFirstBackup ? "true" : "false", new.archiveAfterFirstBackup ? "true" : "false")
-        add("gitHistory", old.includeGitMetadata ? "true" : "false", new.includeGitMetadata ? "true" : "false")
-        add("respectGitignore", old.respectsGitignore ? "true" : "false", new.respectsGitignore ? "true" : "false")
-        add("filenameFormat", old.filenameFormat, new.filenameFormat)
-        add("tone", old.tone.rawValue, new.tone.rawValue)
-        add("coverIcon", old.iconName ?? "", new.iconName ?? "")
-        add("previewFile", old.previewFilePath ?? old.previewImagePath ?? "", new.previewFilePath ?? new.previewImagePath ?? "")
-        add("showPreviewOnCover", old.showPreviewOnCover ? "true" : "false", new.showPreviewOnCover ? "true" : "false")
-        add("note", old.note ?? "", new.note ?? "")
-        let oldCreators = BindingCreator.allCases.filter { old.creators.contains($0) }.map(\.rawValue).joined(separator: ", ")
-        let newCreators = BindingCreator.allCases.filter { new.creators.contains($0) }.map(\.rawValue).joined(separator: ", ")
-        add("creators", oldCreators, newCreators)
-        return changes.isEmpty ? "none" : changes.joined(separator: "; ")
+
+        func toggle(_ oldValue: Bool, _ newValue: Bool, _ label: String) {
+            guard oldValue != newValue else { return }
+            changes.append(newValue ? "Turned on \(label)" : "Turned off \(label)")
+        }
+
+        if old.name != new.name {
+            changes.append(old.name.isEmpty ? "Named the binding \(new.name)" : "Renamed from \(old.name) to \(new.name)")
+        }
+        if old.category != new.category {
+            changes.append("Moved from \(old.category) to \(new.category)")
+        }
+        if old.kind != new.kind {
+            changes.append("Changed type from \(old.kind.rawValue) to \(new.kind.rawValue)")
+        }
+        if old.sourcePath != new.sourcePath {
+            let from = old.sourcePath.isEmpty ? "no source" : URL(fileURLWithPath: old.sourcePath).lastPathComponent
+            let to = new.sourcePath.isEmpty ? "no source" : URL(fileURLWithPath: new.sourcePath).lastPathComponent
+            changes.append("Changed source from \(from) to \(to)")
+        }
+
+        let oldStore = store(for: old)?.name ?? "no store"
+        let newStore = store(for: new)?.name ?? "no store"
+        if oldStore != newStore {
+            changes.append("Moved store from \(oldStore) to \(newStore)")
+        }
+
+        toggle(old.compressBackups, new.compressBackups, "ZIP compression")
+        toggle(old.archiveAfterFirstBackup, new.archiveAfterFirstBackup, "archive after first backup")
+        toggle(old.includeGitMetadata, new.includeGitMetadata, "Git history")
+        toggle(old.respectsGitignore, new.respectsGitignore, "gitignore handling")
+        toggle(old.showPreviewOnCover, new.showPreviewOnCover, "cover preview")
+
+        if old.filenameFormat != new.filenameFormat {
+            changes.append("Changed filename format to \(new.filenameFormat)")
+        }
+        if old.tone != new.tone {
+            changes.append("Changed cover color to \(new.tone.rawValue)")
+        }
+
+        let oldIcon = old.iconName ?? ""
+        let newIcon = new.iconName ?? ""
+        if oldIcon != newIcon {
+            if newIcon.isEmpty {
+                changes.append("Removed the cover icon")
+            } else if oldIcon.isEmpty {
+                changes.append("Added a cover icon")
+            } else {
+                changes.append("Changed the cover icon")
+            }
+        }
+
+        let oldPreview = old.previewFilePath ?? old.previewImagePath ?? ""
+        let newPreview = new.previewFilePath ?? new.previewImagePath ?? ""
+        if oldPreview != newPreview {
+            changes.append(newPreview.isEmpty ? "Removed the cover preview image" : "Updated the cover preview image")
+        }
+
+        if (old.note ?? "") != (new.note ?? "") {
+            changes.append("Updated the note")
+        }
+
+        let oldCreators = Set(BindingCreator.allCases.filter { old.creators.contains($0) }.map(\.rawValue))
+        let newCreators = Set(BindingCreator.allCases.filter { new.creators.contains($0) }.map(\.rawValue))
+        if oldCreators != newCreators {
+            let added = newCreators.subtracting(oldCreators).sorted()
+            let removed = oldCreators.subtracting(newCreators).sorted()
+            if added.count == 1, removed.isEmpty {
+                changes.append("Added creator \(added[0])")
+            } else if removed.count == 1, added.isEmpty {
+                changes.append("Removed creator \(removed[0])")
+            } else {
+                changes.append("Changed creators to \(newCreators.sorted().joined(separator: ", "))")
+            }
+        }
+
+        if old.isFavorite != new.isFavorite {
+            changes.append(new.isFavorite ? "Added to favorites" : "Removed from favorites")
+        }
+        if old.isArchived != new.isArchived {
+            changes.append(new.isArchived ? "Archived the binding" : "Unarchived the binding")
+        }
+
+        return changes
     }
 
     private func persist(message: String) {

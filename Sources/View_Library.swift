@@ -11,8 +11,8 @@ struct LibraryView: View {
     @State private var snapshotBindingFilter: UUID?
     @State private var scope = TimeScope.all
     @State private var viewMode = LibraryViewMode.grid
-    @State private var sort: LibrarySort? = .name
-    @State private var sortAscending = true
+    @State private var sort: LibrarySort? = .lastBackup
+    @State private var sortAscending = false
     @State private var searchFocused = false
     @State private var selectedID: UUID?
     @State private var editingBinding: BackupBinding?
@@ -24,6 +24,7 @@ struct LibraryView: View {
     @State private var showSettings = false
     @State private var didApplyDefaultViewMode = false
     @AppStorage("timeline.visible") private var timelineVisible = true
+    @AppStorage("timeline.width") private var timelineWidth: Double = 360
     @State private var windowWidth: CGFloat = 0
     @State private var showTimelineSheet = false
 
@@ -149,7 +150,7 @@ struct LibraryView: View {
                     cardWidth: $cardWidth,
                     searchPlaceholder: searchPlaceholder,
                     add: addBinding,
-                    refresh: { state.scan() },
+                    refresh: { state.scan(trigger: .manual) },
                     timelineActive: timelineVisible && windowWidth >= 1400,
                     toggleTimeline: {
                         if windowWidth >= 1400 {
@@ -210,11 +211,9 @@ struct LibraryView: View {
             }
 
             if timelineVisible && windowWidth >= 1400 {
-                Rectangle()
-                    .fill(Color.appBorder)
-                    .frame(width: 1)
+                TimelineResizeHandle(width: $timelineWidth)
                 TimelinePanel(onClose: { timelineVisible = false })
-                    .frame(width: 360)
+                    .frame(width: timelineWidth)
             }
         }
         .background(Color.appBackground)
@@ -2828,6 +2827,46 @@ private struct ScopeButtonStyle: ButtonStyle {
             .foregroundStyle(Color.primary.opacity(selected ? 0.90 : 0.44))
             .background(Color.primary.opacity(selected ? 0.105 : 0.040), in: Capsule())
             .opacity(configuration.isPressed ? 0.72 : 1)
+    }
+}
+
+private struct TimelineResizeHandle: View {
+    @Binding var width: Double
+    @State private var dragStart: Double?
+    @State private var hovering = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            Rectangle()
+                .fill(hovering ? Color.accentColor.opacity(0.65) : Color.appBorder)
+                .frame(width: hovering ? 2 : 1)
+        }
+        .frame(width: 7)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hovering = inside
+            if inside {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if dragStart == nil { dragStart = width }
+                    let next = (dragStart ?? width) - value.translation.width
+                    width = min(560, max(320, next))
+                }
+                .onEnded { _ in
+                    dragStart = nil
+                }
+        )
+        .onTapGesture(count: 2) {
+            width = 360
+        }
+        .help("Drag to resize Timeline · double-click to reset")
     }
 }
 

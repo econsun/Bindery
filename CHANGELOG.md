@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.3 — 2026-11-26
+
+- The Filter control is in the Timeline header; quick filters (All / Changes / Backups / Scans / Errors) remain available in the row below. The Filter button has no checkmark and advanced filtering is optional.
+- The filter sheet has clear Field / Logic / Value labels, human-readable event-kind names, and a larger adaptive layout. Empty operators omit the value field, and filtering on Details expands the matching event details.
+- Text logic now includes `is`, `is not`, `contains`, `does not contain`, `starts with`, `ends with`, `is empty`, and `is not empty`; enum fields support `is` / `is not`; time supports before/after/between with date and time.
+- The right Timeline panel can be resized by dragging its left edge; the width is remembered, and double-clicking the handle resets it.
+- Automatic scans are no longer logged or shown; manual scans remain filterable via the Scans quick filter. Scan is removed from the advanced filter field choices.
+- Existing machine-style `Changed: key: true → false` summaries are rendered as natural language; new edits are logged as sentences such as “Turned off cover preview”.
+- Timeline dots follow the event category color; errors keep a red outline and red title.
+- Search placeholder is left-aligned and stays put; Escape/click-away exits editing.
+
 ## 1.2.2 — 2026-11-26
 
 - Timeline filtering is now a condition builder instead of fixed chips: field, operator, and value rows with `is`, `is not`, `contains`, `does not contain`, `before`, `after`, and `between`.

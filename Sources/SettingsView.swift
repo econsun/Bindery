@@ -445,7 +445,7 @@ struct SettingsView: View {
                     Spacer()
 
                     Button {
-                        state.scan()
+                        state.scan(trigger: .manual)
                     } label: {
                         HStack(spacing: 6) {
                             if state.isScanning {

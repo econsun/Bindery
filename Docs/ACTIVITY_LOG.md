@@ -7,12 +7,14 @@ Bindery writes every mutating operation to a durable, append-only JSON Lines fil
 ```
 
 Open **Timeline** from the toolbar to inspect it in the right-hand activity
-panel. The panel has a persistent condition builder: choose a field (Type, Level,
-Actor, Kind, Title, Summary, Details, or Time), an operator (`is`, `is not`,
-`contains`, `does not contain`, `before`, `after`, `between`), and a value.
-Conditions can be combined with All/Any matching. Time conditions support both
-date and time ranges. Expandable details, **Copy JSONL**, and **Reveal Log** are
-also available.
+panel. The panel has quick filters plus a persistent condition builder: choose a field
+(Type, Level, Actor, Kind, Title, Summary, Details, or Time), an operator
+(`is`, `is not`, `contains`, `does not contain`, `starts with`, `ends with`,
+`is empty`, `is not empty`, `before`, `after`, `between`), and a value. Conditions
+can be combined with All/Any matching. Time conditions support both date and
+time ranges. The panel width can be dragged and is remembered. Automatic scans
+are omitted; manual scans are recorded and remain available to the Scans quick
+filter. Expandable details, **Copy JSONL**, and **Reveal Log** are also available.
 
 ## Format
 
