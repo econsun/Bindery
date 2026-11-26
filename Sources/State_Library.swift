@@ -59,14 +59,16 @@ final class LibraryState: ObservableObject {
         loadCategoryColors()
         normalizeCategoryColors()
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        ActivityLog.shared.log(
-            .appLaunch,
-            level: .minor,
-            actor: .system,
-            title: "Bindery launched",
-            summary: "Version \(version)",
-            details: ["version": version, "bindings": "\(bindings.count)", "stores": "\(stores.count)"]
-        )
+        if ActivityLog.shared.shouldRecordLaunch(version: version) {
+            ActivityLog.shared.log(
+                .appLaunch,
+                level: .minor,
+                actor: .system,
+                title: "Bindery launched",
+                summary: "Version \(version)",
+                details: ["version": version, "bindings": "\(bindings.count)", "stores": "\(stores.count)"]
+            )
+        }
     }
 
     var snapshotGroups: [SnapshotGroup] {
@@ -590,19 +592,6 @@ final class LibraryState: ObservableObject {
         let startedAt = Date()
         runningIDs.insert(binding.id)
         showStatus("Backing up \(binding.name.isEmpty ? sourceURL.lastPathComponent : binding.name)…")
-        ActivityLog.shared.log(
-            .backupStarted,
-            level: .minor,
-            title: "Backup started: \(binding.name)",
-            summary: sourceURL.path,
-            details: [
-                "binding": binding.name,
-                "source": sourceURL.path,
-                "store": store.name,
-                "category": binding.category
-            ]
-        )
-
         Task {
             do {
                 let request = BackupRequest(
@@ -684,6 +673,7 @@ final class LibraryState: ObservableObject {
         guard !isScanning else { return }
         isScanning = true
         let startedAt = Date()
+        let previousReport = scanReport
         showStatus(stores.isEmpty ? "Add a store to begin scanning" : "Scanning stores…")
         Task {
             refreshStorePaths()
@@ -698,25 +688,33 @@ final class LibraryState: ObservableObject {
             persist(message: outcome.report.summary)
             let report = outcome.report
             let duration = Int(Date().timeIntervalSince(startedAt) * 1000)
-            let changed = report.found > 0 || report.relocated > 0 || report.unmanaged > 0 || report.missing > 0
-            let level: ActivityLevel = report.errors.isEmpty ? (changed ? .normal : .minor) : .error
-            ActivityLog.shared.log(
-                .scan,
-                level: level,
-                actor: .scan,
-                title: "Scanned stores",
-                summary: report.summary,
-                details: [
-                    "onlineStores": String(report.onlineStores),
-                    "offlineStores": String(report.offlineStores),
-                    "found": String(report.found),
-                    "missing": String(report.missing),
-                    "relocated": String(report.relocated),
-                    "unmanaged": String(report.unmanaged),
-                    "errors": report.errors.joined(separator: " | "),
-                    "durationMs": String(duration)
-                ]
-            )
+            let changed = previousReport == nil
+                || previousReport?.onlineStores != report.onlineStores
+                || previousReport?.offlineStores != report.offlineStores
+                || previousReport?.found != report.found
+                || previousReport?.missing != report.missing
+                || previousReport?.relocated != report.relocated
+                || previousReport?.unmanaged != report.unmanaged
+                || previousReport?.errors != report.errors
+            if changed || !report.errors.isEmpty {
+                ActivityLog.shared.log(
+                    .scan,
+                    level: report.errors.isEmpty ? .normal : .error,
+                    actor: .scan,
+                    title: "Scanned stores",
+                    summary: report.summary,
+                    details: [
+                        "onlineStores": String(report.onlineStores),
+                        "offlineStores": String(report.offlineStores),
+                        "found": String(report.found),
+                        "missing": String(report.missing),
+                        "relocated": String(report.relocated),
+                        "unmanaged": String(report.unmanaged),
+                        "errors": report.errors.joined(separator: " | "),
+                        "durationMs": String(duration)
+                    ]
+                )
+            }
         }
     }
 
@@ -861,7 +859,6 @@ final class LibraryState: ObservableObject {
     func count(_ selection: SidebarSelection) -> Int {
         if selection == .backups { return snapshotGroups.count }
         if selection == .unmanaged { return unmanagedItems.count + unboundSnapshotGroups.count }
-        if selection == .timeline { return ActivityLog.shared.events.count }
         return bindings.filter { matchesSidebar($0, selection: selection) }.count
     }
 
@@ -1095,13 +1092,6 @@ final class LibraryState: ObservableObject {
         runningIDs.insert(binding.id)
         finderIntake = nil
         showStatus("Backing up \(urls.count) Finder item\(urls.count == 1 ? "" : "s") to \(binding.name)…")
-        ActivityLog.shared.log(
-            .backupStarted,
-            level: .minor,
-            title: "Finder backup started: \(binding.name)",
-            summary: "\(urls.count) item\(urls.count == 1 ? "" : "s")",
-            details: ["binding": binding.name, "store": store.name, "files": urls.map(\.path).joined(separator: " | ")]
-        )
         Task {
             var envelopes: [SnapshotEnvelope] = []
             var errors: [String] = []

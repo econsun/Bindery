@@ -6,9 +6,10 @@ Bindery writes every mutating operation to a durable, append-only JSON Lines fil
 ~/Library/Application Support/Bindery/activity.jsonl
 ```
 
-Open **Timeline** in the sidebar to inspect it. The view supports text search,
-filters (`All`, `Changes`, `Backups`, `Scans`, `Errors`), expandable details, a
-wide-screen event inspector, **Copy Event**, **Copy JSONL**, and **Reveal Log**.
+Open **Timeline** from the toolbar to inspect it in the right-hand activity
+panel. The panel supports quick scopes (`All`, `Changes`, `Backups`, `Scans`,
+`Errors`), persistent type/level filters, expandable details, **Copy JSONL**, and
+**Reveal Log**. Selections are remembered across launches.
 
 ## Format
 
@@ -85,6 +86,12 @@ unmanaged.ignored
 - `error` — failed backup, failed verification, import/store errors.
 
 ## Reading it from an AI or shell
+
+The current file is capped at 8 MB. When it grows past that, it rotates to
+`activity.previous.jsonl` and a fresh `activity.jsonl` starts; both are read by
+the panel on launch. No-op scans are not logged, app launches are recorded at
+most once per 24 hours per version, and backup start events are omitted so the
+log stays focused on operations worth reconstructing.
 
 The file is intentionally plain JSONL so an assistant can reconstruct state
 changes without the UI:

@@ -13,7 +13,7 @@ struct LibraryView: View {
     @State private var viewMode = LibraryViewMode.grid
     @State private var sort: LibrarySort? = .name
     @State private var sortAscending = true
-    @FocusState private var searchFocused: Bool
+    @State private var searchFocused = false
     @State private var selectedID: UUID?
     @State private var editingBinding: BackupBinding?
     @State private var pendingDelete: BackupBinding?
@@ -23,6 +23,9 @@ struct LibraryView: View {
     @State private var forcedScheme: ColorScheme?
     @State private var showSettings = false
     @State private var didApplyDefaultViewMode = false
+    @AppStorage("timeline.visible") private var timelineVisible = true
+    @State private var windowWidth: CGFloat = 0
+    @State private var showTimelineSheet = false
 
     private var visibleBindings: [BackupBinding] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,6 +83,10 @@ struct LibraryView: View {
             SettingsView()
                 .environmentObject(appSettings)
                 .environmentObject(state)
+        }
+        .sheet(isPresented: $showTimelineSheet) {
+            TimelinePanel(onClose: { showTimelineSheet = false })
+                .frame(width: 420, height: 720)
         }
         .sheet(item: $editingBinding, onDismiss: openNextDroppedBinding) { binding in
             BindingEditor(
@@ -142,7 +149,15 @@ struct LibraryView: View {
                     cardWidth: $cardWidth,
                     searchPlaceholder: searchPlaceholder,
                     add: addBinding,
-                    refresh: { state.scan() }
+                    refresh: { state.scan() },
+                    timelineActive: timelineVisible && windowWidth >= 1400,
+                    toggleTimeline: {
+                        if windowWidth >= 1400 {
+                            timelineVisible.toggle()
+                        } else {
+                            showTimelineSheet = true
+                        }
+                    }
                 )
                 Group {
                     if sidebar == .backups {
@@ -154,8 +169,6 @@ struct LibraryView: View {
                         )
                     } else if sidebar == .unmanaged {
                         UnmanagedView(search: search)
-                    } else if sidebar == .timeline {
-                        TimelineView(search: search)
                     } else {
                         LibraryContent(
                             title: sidebarTitle,
@@ -193,14 +206,27 @@ struct LibraryView: View {
                         )
                     }
                 }
+                .frame(maxWidth: .infinity)
+            }
+
+            if timelineVisible && windowWidth >= 1400 {
+                Rectangle()
+                    .fill(Color.appBorder)
+                    .frame(width: 1)
+                TimelinePanel(onClose: { timelineVisible = false })
+                    .frame(width: 360)
             }
         }
         .background(Color.appBackground)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            if abs(width - windowWidth) > 1 { windowWidth = width }
+        }
     }
 
     private var searchPlaceholder: String {
         if snapshotBindingFilter != nil { return "Search this binding" }
-        if sidebar == .timeline { return "Search Activity" }
         if sidebar == .backups { return "Search Backups" }
         return "Search Projects"
     }
@@ -377,7 +403,6 @@ struct LibraryView: View {
         case .all: return "All Bindings"
         case .backups: return "All Backups"
         case .unmanaged: return "Unmanaged"
-        case .timeline: return "Timeline"
         case .active: return "Active"
         case .neverBackedUp: return "Unbacked"
         case .favorites: return "Favorites"
@@ -449,7 +474,6 @@ private struct LibrarySidebar: View {
                         reselect: resetSnapshotFilter
                     )
                     sidebarRow("Unmanaged", icon: "tray", selection: .unmanaged)
-                    sidebarRow("Timeline", icon: "clock.arrow.circlepath", selection: .timeline)
 
                     sectionHeader("Smart Folders", expanded: $showSmartFolders)
                     if showSmartFolders {
@@ -844,11 +868,13 @@ private struct LibraryToolbar: View {
     @Binding var viewMode: LibraryViewMode
     @Binding var sort: LibrarySort?
     @Binding var sortAscending: Bool
-    var searchFocused: FocusState<Bool>.Binding
+    @Binding var searchFocused: Bool
     @Binding var cardWidth: Double
     let searchPlaceholder: String
     let add: () -> Void
     let refresh: () -> Void
+    let timelineActive: Bool
+    let toggleTimeline: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -856,18 +882,14 @@ private struct LibraryToolbar: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14.5, weight: .medium))
                     .foregroundStyle(Color.primary.opacity(0.55))
-                TextField(
-                    "",
+                SearchField(
                     text: $search,
-                    prompt: Text(searchPlaceholder)
-                        .font(.bindery(15))
-                        .foregroundColor(Color.appSecondaryText)
+                    isFocused: $searchFocused,
+                    placeholder: searchPlaceholder,
+                    onEscape: { searchFocused = false }
                 )
-                .font(.bindery(15))
-                .focused(searchFocused)
-                .onExitCommand { searchFocused.wrappedValue = false }
-                .textFieldStyle(.plain)
-                .foregroundStyle(Color.primary.opacity(0.92))
+                .frame(maxWidth: .infinity)
+                .frame(height: 22)
                 .accessibilityLabel(searchPlaceholder)
                 if !search.isEmpty {
                     Button { search = "" } label: {
@@ -953,7 +975,7 @@ private struct LibraryToolbar: View {
                     .foregroundStyle(Color.primary.opacity(0.48))
                     Slider(value: $cardWidth, in: 180...300) { editing in
                         if editing {
-                            searchFocused.wrappedValue = false
+                            searchFocused = false
                         }
                     }
                     .controlSize(.mini)
@@ -976,6 +998,28 @@ private struct LibraryToolbar: View {
             }
 
             Spacer()
+
+            Button(action: toggleTimeline) {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Timeline")
+                        .font(.bindery(12.5, .medium))
+                }
+                .foregroundStyle(timelineActive ? Color.accentColor : Color.primary.opacity(0.62))
+                .padding(.horizontal, 9)
+                .frame(height: 36)
+                .background(
+                    timelineActive ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.052),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .help(timelineActive ? "Hide Timeline" : "Show Timeline")
 
             Button(action: refresh) {
                 HStack(spacing: 5) {

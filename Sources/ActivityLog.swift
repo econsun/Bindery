@@ -179,6 +179,12 @@ final class ActivityLog: ObservableObject {
             .appendingPathComponent("activity.jsonl")
     }()
 
+    nonisolated static var previousURL: URL {
+        logURL.deletingLastPathComponent().appendingPathComponent("activity.previous.jsonl")
+    }
+
+    nonisolated static let maximumFileBytes = 8 * 1024 * 1024
+
     @Published private(set) var events: [ActivityEvent] = []
 
     private let maximumInMemory = 5_000
@@ -230,6 +236,12 @@ final class ActivityLog: ObservableObject {
         }
     }
 
+    func shouldRecordLaunch(version: String) -> Bool {
+        guard let last = events.first(where: { $0.kind == .appLaunch }) else { return true }
+        if last.details["version"] != version { return true }
+        return Date().timeIntervalSince(last.timestamp) >= 86_400
+    }
+
     func jsonLines(for events: [ActivityEvent]) -> String {
         var lines: [String] = []
         for event in events.sorted(by: { $0.timestamp < $1.timestamp }) {
@@ -250,19 +262,17 @@ final class ActivityLog: ObservableObject {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: Self.logURL),
-              let text = String(data: data, encoding: .utf8) else {
-            events = []
-            return
-        }
-        let lines = text.split(separator: "\n").suffix(maximumInMemory)
         var loaded: [ActivityEvent] = []
-        for line in lines {
-            guard let lineData = line.data(using: .utf8),
-                  let event = try? decoder.decode(ActivityEvent.self, from: lineData) else { continue }
-            loaded.append(event)
+        for url in [Self.previousURL, Self.logURL] {
+            guard let data = try? Data(contentsOf: url),
+                  let text = String(data: data, encoding: .utf8) else { continue }
+            for line in text.split(separator: "\n") {
+                guard let lineData = line.data(using: .utf8),
+                      let event = try? decoder.decode(ActivityEvent.self, from: lineData) else { continue }
+                loaded.append(event)
+            }
         }
-        events = loaded.sorted { $0.timestamp > $1.timestamp }
+        events = Array(loaded.sorted { $0.timestamp > $1.timestamp }.prefix(maximumInMemory))
     }
 
     private nonisolated static func append(_ data: Data, to url: URL) {
@@ -279,5 +289,16 @@ final class ActivityLog: ObservableObject {
         } catch {
             // Logging must never break a backup operation.
         }
+
+        guard let size = try? manager.attributesOfItem(atPath: url.path)[.size] as? Int,
+              size > maximumFileBytes else { return }
+        rotate(url: url, manager: manager)
+    }
+
+    private nonisolated static func rotate(url: URL, manager: FileManager) {
+        let previous = previousURL
+        try? manager.removeItem(at: previous)
+        try? manager.moveItem(at: url, to: previous)
+        manager.createFile(atPath: url.path, contents: nil)
     }
 }

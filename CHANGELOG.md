@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 — 2026-11-26
+
+- Timeline is now a right-hand activity panel with a labeled **Timeline** toolbar entry and a close button, instead of a sidebar destination.
+- Removed timeline event/day counts; the panel is quieter and uses the top-right space.
+- Timeline dots are larger and centered on the rail, with their vertical center locked to the title row.
+- Timeline filters now include persistent quick scopes plus type and level filters; selections survive relaunches.
+- Search uses an AppKit-backed field with a stable placeholder and reliable Escape/click-away focus exit.
+- Log growth is bounded: 8 MB rotation to `activity.previous.jsonl`, app launches at most once per 24 hours/version, no-op scans suppressed, and start events no longer written.
+
 ## 1.2.0 — 2026-11-26
 
 - Finder integration: right-click any file or folder and choose **Use Bindery → Add to Unmanaged** or **Back Up to Binding…**. The new intake sheet lets you pick a store or search bindings without leaving the flow. Folders are supported.
